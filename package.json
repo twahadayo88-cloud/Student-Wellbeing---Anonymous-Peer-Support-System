@@ -1,0 +1,25 @@
+{
+  "name": "peerbridge",
+  "version": "1.0.0",
+  "description": "PeerBridge – Student Wellbeing & Anonymous Peer Support System",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "start": "concurrently \"npm start --prefix server\" \"npm start --prefix client\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "install:all": "npm install && cd server && npm install && cd ../client && npm install",
+    "lint": "cd server && npm run lint && cd ../client && npm run lint"
+  },
+  "keywords": [
+    "peer-support",
+    "wellbeing",
+    "anonymous",
+    "student"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
