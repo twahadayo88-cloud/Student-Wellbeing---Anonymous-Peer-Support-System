@@ -97,17 +97,12 @@ export default function ChatBox({ peer, onClose, initialMode = 'chat_only', isIn
       setTimeout(() => setError(null), 4000); // clear error after 4s
     };
 
-    const handleSos = (data) => {
-      setError(`EMERGENCY ALERT: ${data.alert}`);
-    };
-
     socket.on('receive_message', handleReceive);
     socket.on('message_sent', handleSent);
     socket.on('message_read', handleMessageRead);
     socket.on('peer_typing_start', handleTyping);
     socket.on('peer_typing_stop', handleTypingStop);
     socket.on('message_error', handleError);
-    socket.on('sos_trigger', handleSos);
 
     return () => {
       socket.off('receive_message', handleReceive);
@@ -116,7 +111,6 @@ export default function ChatBox({ peer, onClose, initialMode = 'chat_only', isIn
       socket.off('peer_typing_start', handleTyping);
       socket.off('peer_typing_stop', handleTypingStop);
       socket.off('message_error', handleError);
-      socket.off('sos_trigger', handleSos);
     };
   }, [socket, peer]);
 

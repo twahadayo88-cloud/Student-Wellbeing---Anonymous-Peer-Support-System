@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Zap, AlertTriangle, Shield, Check, X, ArrowUpCircle, Eye, GraduationCap, Award, History, RotateCcw, Save } from 'lucide-react';
+import { Users, Zap, AlertTriangle, Shield, Check, X, ArrowUpCircle, Eye, GraduationCap, History, HeartPulse, RefreshCw } from 'lucide-react';
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import Navbar from '../components/layout/Navbar';
 import Footer from '../components/layout/Footer';
 import useAuth from '../hooks/useAuth';
@@ -10,7 +11,7 @@ import BadgeDisplay from '../components/trust/BadgeDisplay';
 
 /**
  * AdminPanel — central command for PeerBridge administrators.
- * Real-time monitoring of stats, SOS alerts, and violations.
+ * Real-time monitoring of platform stats, moderation, and violations.
  */
 export default function AdminPanel() {
   const { user } = useAuth();
@@ -19,26 +20,166 @@ export default function AdminPanel() {
   const [stats, setStats] = useState({
     total_users: 0,
     active_today: 0,
-    active_sos: 0,
     total_violations: 0
   });
 
   const [users, setUsers] = useState([]);
-  const [sosAlerts, setSosAlerts] = useState([]);
   const [violations, setViolations] = useState([]);
   const [moderationQueue, setModerationQueue] = useState([]);
   const [escalations, setEscalations] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [lowScoreUsers, setLowScoreUsers] = useState([]);
   const [academicQueue, setAcademicQueue] = useState([]);
-  const [trustRecords, setTrustRecords] = useState([]);
-  const [selectedUserTrust, setSelectedUserTrust] = useState(null);
-  const [trustHistory, setTrustHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [moodTrends, setMoodTrends] = useState({});
+  const [moodLoading, setMoodLoading] = useState(false);
+  const [moodError, setMoodError] = useState('');
+  const [escalatedComplaints, setEscalatedComplaints] = useState([]);
+  const [pendingComplaintReveals, setPendingComplaintReveals] = useState([]);
+  const [complaintAudits, setComplaintAudits] = useState({});
+  const [complaintNotes, setComplaintNotes] = useState({});
+  const [noticeAppeals, setNoticeAppeals] = useState([]);
+  const [appealNotes, setAppealNotes] = useState({});
+  const [repeatOffenders, setRepeatOffenders] = useState([]);
+  const [securitySignals, setSecuritySignals] = useState(null);
+  const [moderationRules, setModerationRules] = useState([]);
+  const [newRuleTerm, setNewRuleTerm] = useState('');
+  const [newRuleSeverity, setNewRuleSeverity] = useState('MEDIUM');
+  const [policyReviews, setPolicyReviews] = useState([]);
+  const [policySummary, setPolicySummary] = useState('');
+  const [adminSectionLoading, setAdminSectionLoading] = useState(false);
+  const [adminSectionError, setAdminSectionError] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
   const [searchQuery, setSearchQuery] = useState('');
-  const [overrideValue, setOverrideValue] = useState(50);
-  const [overrideReason, setOverrideReason] = useState('');
+  const canViewMoodTrends = user?.role === 'admin' || user?.role === 'super_admin';
+
+  const fetchMoodTrends = async () => {
+    setMoodLoading(true);
+    setMoodError('');
+    try {
+      const res = await api.get('/mood/aggregated');
+      setMoodTrends(res.data.data || {});
+    } catch (err) {
+      setMoodError(err.response?.data?.message || 'Could not load wellbeing trends.');
+    } finally {
+      setMoodLoading(false);
+    }
+  };
+
+  const loadAdminSection = async (section) => {
+    setAdminSectionLoading(true);
+    setAdminSectionError('');
+    try {
+      if (section === 'complaints') {
+        const [cases, reveals] = await Promise.all([
+          api.get('/complaints/admin/escalated'),
+          api.get('/complaints/admin/reveal-pending'),
+        ]);
+        setEscalatedComplaints(cases.data.data || []);
+        setPendingComplaintReveals(reveals.data.data || []);
+      } else if (section === 'appeals') {
+        const response = await api.get('/admin/appeals');
+        setNoticeAppeals(response.data.data || []);
+      } else if (section === 'repeat-offenders') {
+        const response = await api.get('/admin/repeat-offenders');
+        setRepeatOffenders(response.data.data || []);
+      } else if (section === 'security') {
+        const response = await api.get('/admin/security/signals');
+        setSecuritySignals(response.data.data || null);
+      } else if (section === 'rules') {
+        const response = await api.get('/admin/moderation/rules');
+        setModerationRules(response.data.data || []);
+      } else if (section === 'policy-review') {
+        const response = await api.get('/admin/policy-reviews');
+        setPolicyReviews(response.data.data || []);
+      }
+    } catch (err) {
+      setAdminSectionError(err.response?.data?.message || 'Could not load this admin view.');
+    } finally {
+      setAdminSectionLoading(false);
+    }
+  };
+
+  const loadComplaintAudit = async (complaintId) => {
+    try {
+      const response = await api.get(`/complaints/${complaintId}/audit`);
+      setComplaintAudits(current => ({ ...current, [complaintId]: response.data.data || [] }));
+    } catch (err) {
+      setAdminSectionError(err.response?.data?.message || 'Could not load complaint history.');
+    }
+  };
+
+  const resolveEscalatedComplaint = async (complaintId, action) => {
+    const note = complaintNotes[complaintId] || '';
+    if (note.trim().length < 10) {
+      setAdminSectionError('Resolution or rejection note must be at least 10 characters.');
+      return;
+    }
+    try {
+      await api.post(`/complaints/${complaintId}/resolve`, { action, note });
+      await loadAdminSection('complaints');
+    } catch (err) {
+      setAdminSectionError(err.response?.data?.message || 'Could not resolve complaint.');
+    }
+  };
+
+  const approveComplaintReveal = async (recordId) => {
+    try {
+      const response = await api.post(`/complaints/reveal-approve/${recordId}`);
+      window.alert(`Identity revealed: ${response.data.data?.email || 'user no longer exists'}`);
+      await loadAdminSection('complaints');
+    } catch (err) {
+      setAdminSectionError(err.response?.data?.message || 'A different administrator must approve this request.');
+    }
+  };
+
+  const reviewNoticeAppeal = async (appealId, decision) => {
+    try {
+      await api.patch(`/admin/appeals/${appealId}`, { decision, note: appealNotes[appealId] || '' });
+      await loadAdminSection('appeals');
+    } catch (err) {
+      setAdminSectionError(err.response?.data?.message || 'Could not review appeal.');
+    }
+  };
+
+  const addModerationRule = async (event) => {
+    event.preventDefault();
+    try {
+      await api.post('/admin/moderation/rules', { term: newRuleTerm, severity: newRuleSeverity });
+      setNewRuleTerm('');
+      await loadAdminSection('rules');
+    } catch (err) {
+      setAdminSectionError(err.response?.data?.message || 'Could not add moderation rule.');
+    }
+  };
+
+  const updateModerationRule = async (ruleId, updates) => {
+    try {
+      await api.patch(`/admin/moderation/rules/${ruleId}`, updates);
+      await loadAdminSection('rules');
+    } catch (err) {
+      setAdminSectionError(err.response?.data?.message || 'Could not update moderation rule.');
+    }
+  };
+
+  const removeModerationRule = async (ruleId) => {
+    try {
+      await api.delete(`/admin/moderation/rules/${ruleId}`);
+      await loadAdminSection('rules');
+    } catch (err) {
+      setAdminSectionError(err.response?.data?.message || 'Could not delete moderation rule.');
+    }
+  };
+
+  const savePolicyReview = async (event) => {
+    event.preventDefault();
+    try {
+      await api.post('/admin/policy-reviews', { summary: policySummary });
+      setPolicySummary('');
+      await loadAdminSection('policy-review');
+    } catch (err) {
+      setAdminSectionError(err.response?.data?.message || 'Could not record weekly review.');
+    }
+  };
 
   // ─── Data Fetching & Sync ──────────────────────────────────────────
   useEffect(() => {
@@ -56,11 +197,6 @@ export default function AdminPanel() {
     socket.emit('admin:init');
 
     const onAdminStats = (data) => setStats(data);
-    const onSosAlerts = (data) => setSosAlerts(data);
-    const onNewSos = (newSos) => {
-      setSosAlerts(prev => [newSos, ...prev]);
-      setStats(prev => ({ ...prev, active_sos: (prev.active_sos || 0) + 1 }));
-    };
     const onNewViolation = (violation) => {
       setViolations(prev => {
         if (prev.some(v => v.id === violation.id)) return prev;
@@ -78,21 +214,17 @@ export default function AdminPanel() {
 
     const onTrustUpdated = (data) => {
       setUsers(prev => prev.map(user => 
-        user.id === data.user_id ? { ...user, trust_score: data.new_score } : user
+        user.id === data.user_id ? { ...user, badge_tier: data.badge_tier } : user
       ));
     };
 
     socket.on('admin:stats', onAdminStats);
-    socket.on('admin:sos_alerts', onSosAlerts);
-    socket.on('admin:new_sos', onNewSos);
     socket.on('admin:new_violation', onNewViolation);
     socket.on('admin:new_moderation', onNewModeration);
     socket.on('trust:score_updated', onTrustUpdated);
 
     return () => {
       socket.off('admin:stats', onAdminStats);
-      socket.off('admin:sos_alerts', onSosAlerts);
-      socket.off('admin:new_sos', onNewSos);
       socket.off('admin:new_violation', onNewViolation);
       socket.off('admin:new_moderation', onNewModeration);
       socket.off('trust:score_updated', onTrustUpdated);
@@ -118,8 +250,6 @@ export default function AdminPanel() {
       setViolations(violationsRes.data.data);
     } catch (err) {
       console.error('Failed to fetch admin tables', err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -154,8 +284,10 @@ export default function AdminPanel() {
   };
 
   const handleRevealIdentity = async (userId) => {
+    const justification = window.prompt('Provide a justification (at least 20 characters) for this identity-reveal request:');
+    if (!justification || justification.trim().length < 20) return;
     try {
-      const res = await api.post(`/admin/identity-reveal/${userId}`);
+      const res = await api.post(`/admin/identity-reveal/${userId}`, { justification: justification.trim() });
       if (res.data.data?.email) {
         alert(`Real Identity revealed: ${res.data.data.email}`);
       } else {
@@ -164,16 +296,6 @@ export default function AdminPanel() {
       fetchModerationData();
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to request identity reveal');
-    }
-  };
-
-  const handleResolveSOS = async (id) => {
-    try {
-      await api.patch(`/admin/sos/${id}/resolve`);
-      setSosAlerts(prev => prev.map(s => s.id === id ? { ...s, status: 'resolved' } : s));
-      setStats(prev => ({ ...prev, active_sos: Math.max(0, prev.active_sos - 1) }));
-    } catch (err) {
-      alert('Failed to resolve SOS');
     }
   };
 
@@ -206,7 +328,6 @@ export default function AdminPanel() {
   const statCards = [
     { label: 'Total Users', value: stats.total_users, color: 'from-blue-500 to-indigo-600', icon: Users },
     { label: 'Active Today', value: stats.active_today, color: 'from-emerald-500 to-teal-600', icon: Zap },
-    { label: 'Active SOS', value: stats.active_sos, color: 'from-red-500 to-rose-600', icon: AlertTriangle },
     { label: 'Violations', value: stats.total_violations, color: 'from-amber-500 to-orange-600', icon: AlertTriangle },
   ];
 
@@ -244,10 +365,14 @@ export default function AdminPanel() {
 
         {/* Navigation Tabs */}
         <div className="flex border-b border-surface-200 dark:border-surface-800 mb-8 overflow-x-auto no-scrollbar">
-          {['overview', 'users', 'sos', 'violations', 'moderation', 'academic', 'trust', 'escalations', 'audit-logs'].map((tab) => (
+          {['overview', 'users', 'violations', 'moderation', 'academic', 'trust', 'escalations', 'complaints', 'appeals', 'repeat-offenders', 'security', 'rules', 'policy-review', 'audit-logs', ...(canViewMoodTrends ? ['wellbeing'] : [])].map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => {
+                setActiveTab(tab);
+                if (tab === 'wellbeing' && canViewMoodTrends) fetchMoodTrends();
+                if (['complaints', 'appeals', 'repeat-offenders', 'security', 'rules', 'policy-review'].includes(tab)) loadAdminSection(tab);
+              }}
               className={`px-6 py-3 text-sm font-bold uppercase tracking-wider transition-all border-b-2 ${
                 activeTab === tab
                   ? 'border-primary-500 text-primary-600'
@@ -270,27 +395,6 @@ export default function AdminPanel() {
           >
             {activeTab === 'overview' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Recent SOS Summary */}
-                <div className="glass-card p-6">
-                  <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                    <AlertTriangle className="w-5 h-5 text-red-500" /> Urgent SOS Alerts
-                  </h2>
-                  <div className="space-y-3">
-                    {sosAlerts.filter(s => s.status === 'pending').slice(0, 5).map(sos => (
-                      <div key={sos.id} className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-xl">
-                        <div>
-                          <p className="text-sm font-bold text-red-700 dark:text-red-400">{sos.anonymous_id}</p>
-                          <p className="text-xs text-surface-600 dark:text-surface-400">{sos.category}</p>
-                        </div>
-                        <button onClick={() => handleResolveSOS(sos.id)} className="btn-primary py-1.5 px-4 text-xs bg-red-600 hover:bg-red-700 shadow-none">Resolve</button>
-                      </div>
-                    ))}
-                    {sosAlerts.filter(s => s.status === 'pending').length === 0 && (
-                      <p className="text-sm text-surface-500 text-center py-6">All clear! No pending SOS alerts.</p>
-                    )}
-                  </div>
-                </div>
-
                 {/* Recent Violations Summary */}
                 <div className="glass-card p-6">
                   <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
@@ -318,6 +422,61 @@ export default function AdminPanel() {
               </div>
             )}
 
+            {activeTab === 'wellbeing' && canViewMoodTrends && (
+              <section className="space-y-6">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold flex items-center gap-2">
+                      <HeartPulse className="w-5 h-5 text-rose-500" /> Department Wellbeing Trends
+                    </h2>
+                    <p className="text-sm text-surface-500 mt-1">Anonymized daily averages for the last 30 days. Individual check-ins and notes are never shown.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={fetchMoodTrends}
+                    disabled={moodLoading}
+                    className="btn-secondary inline-flex items-center gap-2"
+                    aria-label="Refresh wellbeing trends"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${moodLoading ? 'animate-spin' : ''}`} /> Refresh
+                  </button>
+                </div>
+
+                {moodLoading ? (
+                  <div className="glass-card py-16 text-center text-surface-500">Loading department trends...</div>
+                ) : moodError ? (
+                  <div className="glass-card p-8 text-center">
+                    <p className="text-sm text-red-500 mb-4">{moodError}</p>
+                    <button type="button" onClick={fetchMoodTrends} className="btn-primary">Retry</button>
+                  </div>
+                ) : Object.keys(moodTrends).length === 0 ? (
+                  <div className="glass-card py-16 text-center text-surface-500">No aggregated check-ins are available for the last 30 days.</div>
+                ) : (
+                  <div className="space-y-5">
+                    {Object.entries(moodTrends).map(([department, entries]) => (
+                      <div key={department} className="glass-card p-6">
+                        <div className="flex items-center justify-between gap-4 mb-5">
+                          <h3 className="font-semibold text-surface-900 dark:text-white">{department || 'Unassigned department'}</h3>
+                          <span className="text-xs text-surface-500">{entries.reduce((total, entry) => total + Number(entry.check_in_count || 0), 0)} check-ins</span>
+                        </div>
+                        <div className="h-56">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={entries} margin={{ top: 5, right: 12, left: -20, bottom: 2 }}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(156,163,175,0.2)" />
+                              <XAxis dataKey="date" tickFormatter={date => String(date).slice(5)} tick={{ fontSize: 11 }} />
+                              <YAxis domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} tick={{ fontSize: 11 }} />
+                              <Tooltip formatter={value => [Number(value).toFixed(1), 'Average mood']} />
+                              <Line type="monotone" dataKey="avg_score" stroke="#e25575" strokeWidth={2.5} dot={{ r: 3 }} />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
             {activeTab === 'users' && (
               <div className="glass-card overflow-hidden">
                 <div className="p-4 border-b border-surface-100 dark:border-surface-800">
@@ -338,7 +497,6 @@ export default function AdminPanel() {
                         <th className="px-6 py-4">Role</th>
                         <th className="px-6 py-4">Status</th>
                         <th className="px-6 py-4">Joined</th>
-                        <th className="px-6 py-4">Trust</th>
                         <th className="px-6 py-4">Actions</th>
                       </tr>
                     </thead>
@@ -364,11 +522,6 @@ export default function AdminPanel() {
                           <td className="px-6 py-4 text-surface-500 text-xs">
                             {new Date(u.created_at).toLocaleDateString()}
                           </td>
-                          <td className="px-6 py-4">
-                            <div className="w-12 h-1.5 bg-surface-100 dark:bg-surface-800 rounded-full overflow-hidden">
-                              <div className="h-full bg-emerald-500" style={{ width: `${u.trust_score || 50}%` }} />
-                            </div>
-                          </td>
                           <td className="px-6 py-4 flex items-center gap-2">
                             <select
                               className="bg-transparent text-xs font-bold text-surface-600 outline-none cursor-pointer"
@@ -377,9 +530,8 @@ export default function AdminPanel() {
                             >
                               <option value="student">STUDENT</option>
                               <option value="faculty">FACULTY</option>
-                              <option value="counselor_admin">COUNSELOR</option>
-                              <option value="dept_admin">DEPT_ADMIN</option>
                               <option value="admin">ADMIN</option>
+                              <option value="super_admin">SUPER_ADMIN</option>
                             </select>
                             {u.is_locked ? (
                               <button 
@@ -398,38 +550,6 @@ export default function AdminPanel() {
               </div>
             )}
 
-            {activeTab === 'sos' && (
-              <div className="space-y-4">
-                {sosAlerts.map(sos => (
-                  <div key={sos.id} className={`glass-card p-6 border-l-4 ${sos.status === 'pending' ? 'border-l-red-500' : 'border-l-emerald-500'}`}>
-                    <div className="flex flex-col md:flex-row justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="font-mono font-bold text-surface-900 dark:text-white text-lg">{sos.anonymous_id}</span>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                            sos.status === 'pending' ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'
-                          }`}>
-                            {sos.status}
-                          </span>
-                        </div>
-                        <p className="text-sm font-semibold text-surface-700 dark:text-surface-300">{sos.category}</p>
-                        <p className="text-xs text-surface-500 mt-1">Reported: {new Date(sos.created_at).toLocaleString()}</p>
-                      </div>
-                      {sos.status === 'pending' && (
-                        <div className="flex items-center gap-3">
-                           <button onClick={() => handleResolveSOS(sos.id)} className="btn-primary py-2 px-6">Resolve & Schedule Check-in</button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                {sosAlerts.length === 0 && (
-                  <div className="text-center py-20 glass-card">
-                    <p className="text-surface-400">No SOS records found in the system.</p>
-                  </div>
-                )}
-              </div>
-            )}
             {activeTab === 'violations' && (
               <div className="glass-card overflow-hidden">
                 <div className="overflow-x-auto">
@@ -481,7 +601,7 @@ export default function AdminPanel() {
                               item.ai_severity === 'HIGH' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'
                             }`}>{item.ai_severity}</span>
                           </div>
-                          <p className="text-surface-700 dark:text-surface-300 italic mb-4">"{item.content_text}"</p>
+                          <p className="text-surface-700 dark:text-surface-300 italic mb-4">&ldquo;{item.content_text}&rdquo;</p>
                           <p className="text-xs text-surface-500">AI Reason: <span className="font-semibold">{item.ai_reason}</span></p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -634,169 +754,27 @@ export default function AdminPanel() {
               </div>
             )}
             {activeTab === 'trust' && (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Left: User Trust List */}
-                <div className="lg:col-span-2 glass-card overflow-hidden">
-                  <div className="p-4 border-b border-surface-100 dark:border-surface-800 bg-surface-50/50 dark:bg-surface-800/20 flex justify-between items-center">
-                    <h3 className="font-bold text-surface-900 dark:text-white flex items-center gap-2">
-                      <Award className="w-5 h-5 text-indigo-500" /> Community Reputation
-                    </h3>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                      <thead className="bg-surface-50 dark:bg-surface-800/50 text-[10px] uppercase tracking-widest font-bold text-surface-500">
-                        <tr>
-                          <th className="px-6 py-4">Peer ID</th>
-                          <th className="px-6 py-4">Tier</th>
-                          <th className="px-6 py-4">Score</th>
-                          <th className="px-6 py-4">Action</th>
+              <section className="glass-card overflow-hidden">
+                <div className="border-b border-surface-200 p-5 dark:border-surface-800">
+                  <h2 className="font-bold text-surface-900 dark:text-white">Community Badge Tiers</h2>
+                  <p className="mt-1 text-xs text-surface-500">Numeric trust scores are private to the matching engine; this view shows badge tiers only.</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-surface-50 text-xs uppercase text-surface-500 dark:bg-surface-800"><tr><th className="p-4">Anonymous ID</th><th className="p-4">Badge</th><th className="p-4">Department</th></tr></thead>
+                    <tbody>
+                      {users.filter(account => account.role === 'student').map(account => (
+                        <tr key={account.id} className="border-t border-surface-100 dark:border-surface-800">
+                          <td className="p-4 font-mono">{account.anonymous_id || 'N/A'}</td>
+                          <td className="p-4"><BadgeDisplay tier={account.badge_tier || 'bronze'} size="sm" /></td>
+                          <td className="p-4">{account.department || 'Unassigned'}</td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-surface-100 dark:divide-surface-800">
-                        {users.filter(u => u.role === 'student').map(u => (
-                          <tr key={u.id} className={`text-sm hover:bg-surface-50 dark:hover:bg-surface-800/30 transition-colors ${selectedUserTrust?.id === u.id ? 'bg-indigo-500/5' : ''}`}>
-                            <td className="px-6 py-4 font-mono font-bold text-surface-900 dark:text-white">{u.anonymous_id}</td>
-                            <td className="px-6 py-4">
-                              <BadgeDisplay tier={getTierFromScore(u.trust_score)} size="sm" showLabel={false} />
-                            </td>
-                            <td className="px-6 py-4 font-bold text-indigo-500">{u.trust_score}</td>
-                            <td className="px-6 py-4">
-                              <button 
-                                onClick={async () => {
-                                  setSelectedUserTrust(u);
-                                  setOverrideValue(u.trust_score);
-                                  try {
-                                    const res = await api.get(`/trust/history/${u.id}`);
-                                    setTrustHistory(res.data.data);
-                                  } catch (e) { setTrustHistory([]); }
-                                }}
-                                className="text-primary-600 hover:underline text-xs font-bold"
-                              >
-                                Manage
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
+                  {users.filter(account => account.role === 'student').length === 0 && <p className="p-8 text-center text-sm text-surface-500">No student badges available.</p>}
                 </div>
-
-                {/* Right: Management Panel */}
-                <div className="space-y-6">
-                  {selectedUserTrust ? (
-                    <div className="glass-card p-6 border-t-4 border-t-indigo-500">
-                      <h3 className="font-bold text-surface-900 dark:text-white mb-4">Manage {selectedUserTrust.anonymous_id}</h3>
-                      
-                      <div className="space-y-6">
-                        {/* Score Override */}
-                        <div>
-                          <label className="text-xs font-bold text-surface-500 uppercase block mb-2">Override Trust Score (0-100)</label>
-                          <div className="flex gap-4 items-center">
-                            <input 
-                              type="range" min="0" max="100" 
-                              value={overrideValue} 
-                              onChange={(e) => setOverrideValue(parseInt(e.target.value))}
-                              className="flex-1 accent-indigo-500"
-                            />
-                            <span className="text-xl font-bold text-indigo-500 w-10">{overrideValue}</span>
-                          </div>
-                          <input 
-                            type="text" 
-                            placeholder="Reason for override..."
-                            value={overrideReason}
-                            onChange={(e) => setOverrideReason(e.target.value)}
-                            className="input-field w-full mt-3 text-xs"
-                          />
-                          <button 
-                            onClick={async () => {
-                              if (!overrideReason.trim()) {
-                                alert('Please provide a reason for the trust score override.');
-                                return;
-                              }
-                              try {
-                                await api.post(`/trust/override`, {
-                                  userId: selectedUserTrust.id,
-                                  newScore: overrideValue,
-                                  reason: overrideReason
-                                });
-                                
-                                // Synchronously update user list and currently selected user in local state
-                                setUsers(prev => prev.map(u => u.id === selectedUserTrust.id ? { ...u, trust_score: overrideValue } : u));
-                                setSelectedUserTrust(prev => prev ? { ...prev, trust_score: overrideValue } : null);
-                                
-                                // Clear input reason
-                                setOverrideReason('');
-                                
-                                // Re-fetch history for the selected user to display the new override event immediately
-                                try {
-                                  const historyRes = await api.get(`/trust/history/${selectedUserTrust.id}`);
-                                  setTrustHistory(historyRes.data.data);
-                                } catch (err) {
-                                  console.error('Failed to reload trust history', err);
-                                }
-
-                                alert('Score updated successfully!');
-                              } catch (err) {
-                                const errMsg = err.response?.data?.message || err.message || 'Failed to update score';
-                                alert(errMsg);
-                              }
-                            }}
-                            className="btn-primary w-full mt-4 py-2 text-xs flex items-center justify-center gap-2"
-                          >
-                            <Save size={14} /> Update Score
-                          </button>
-                        </div>
-
-                        {/* Actions */}
-                        <div className="pt-4 border-t border-surface-100 dark:border-surface-800">
-                          <button 
-                            onClick={async () => {
-                              if (!window.confirm('Are you sure you want to reset this users trust history? This cannot be undone.')) return;
-                              try {
-                                await api.delete(`/trust/history/${selectedUserTrust.id}`);
-                                setTrustHistory([]);
-                                alert('History reset successfully');
-                              } catch (e) { alert('Failed to reset history'); }
-                            }}
-                            className="text-red-500 hover:text-red-600 text-xs font-bold flex items-center gap-2"
-                          >
-                            <RotateCcw size={14} /> Reset Reputation History
-                          </button>
-                        </div>
-
-                        {/* Recent History */}
-                        <div className="pt-4 border-t border-surface-100 dark:border-surface-800">
-                          <h4 className="text-xs font-bold text-surface-500 uppercase flex items-center gap-2 mb-3">
-                            <History size={14} /> Recent Events
-                          </h4>
-                          <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                            {trustHistory.map((h, i) => (
-                              <div key={i} className="text-[10px] p-2 bg-surface-50 dark:bg-surface-800/50 rounded-lg border border-surface-100 dark:border-surface-800">
-                                <div className="flex justify-between items-start mb-1">
-                                  <span className={`font-bold ${h.change_amount > 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                                    {h.change_amount > 0 ? '+' : ''}{h.change_amount} pts
-                                  </span>
-                                  <span className="text-surface-400">{new Date(h.created_at).toLocaleDateString()}</span>
-                                </div>
-                                <p className="text-surface-600 dark:text-surface-400 leading-tight">{h.reason}</p>
-                              </div>
-                            ))}
-                            {trustHistory.length === 0 && (
-                              <p className="text-center text-[10px] text-surface-400 py-4 italic">No history records found.</p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="glass-card p-12 text-center border-dashed">
-                      <Users className="w-12 h-12 text-surface-300 mx-auto mb-4" />
-                      <p className="text-sm text-surface-500">Select a community member from the list to manage their reputation.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
+              </section>
             )}
             {activeTab === 'escalations' && (
               <div className="glass-card overflow-hidden">
@@ -841,6 +819,225 @@ export default function AdminPanel() {
                   </table>
                 </div>
               </div>
+            )}
+
+            {adminSectionError && ['complaints', 'appeals', 'repeat-offenders', 'security', 'rules', 'policy-review'].includes(activeTab) && (
+              <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">{adminSectionError}</div>
+            )}
+
+            {adminSectionLoading && ['complaints', 'appeals', 'repeat-offenders', 'security', 'rules', 'policy-review'].includes(activeTab) && (
+              <div className="glass-card p-8 text-center text-surface-500">Loading Higher Authority data...</div>
+            )}
+
+            {activeTab === 'complaints' && !adminSectionLoading && (
+              <div className="space-y-6">
+                <section className="space-y-4">
+                  <h2 className="text-lg font-bold text-surface-900 dark:text-white">Pending Identity-Reveal Approvals</h2>
+                  {pendingComplaintReveals.map(request => (
+                    <div key={request.record_id} className="glass-card flex flex-wrap items-center justify-between gap-4 p-4">
+                      <div>
+                        <p className="font-semibold">Complaint #{request.complaint_id}</p>
+
+                    {adminSectionError && ['complaints', 'appeals', 'repeat-offenders', 'security', 'rules', 'policy-review'].includes(activeTab) && (
+                      <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">{adminSectionError}</div>
+                    )}
+
+                    {adminSectionLoading && ['complaints', 'appeals', 'repeat-offenders', 'security', 'rules', 'policy-review'].includes(activeTab) && (
+                      <div className="glass-card p-8 text-center text-surface-500">Loading Higher Authority data...</div>
+                    )}
+
+                    {activeTab === 'complaints' && !adminSectionLoading && (
+                      <div className="space-y-6">
+                        <section className="space-y-4">
+                          <h2 className="text-lg font-bold text-surface-900 dark:text-white">Pending Identity-Reveal Approvals</h2>
+                          {pendingComplaintReveals.map(request => (
+                            <div key={request.record_id} className="glass-card flex flex-wrap items-center justify-between gap-4 p-4">
+                              <div>
+                                <p className="font-semibold">Complaint #{request.complaint_id}</p>
+                                <p className="mt-1 text-xs text-surface-500">Justification: {request.justification}</p>
+                              </div>
+                              <button type="button" onClick={() => approveComplaintReveal(request.record_id)} className="btn-secondary inline-flex items-center gap-2"><Eye className="h-4 w-4" /> Approve as second admin</button>
+                            </div>
+                          ))}
+                          {pendingComplaintReveals.length === 0 && <p className="text-sm text-surface-500">No pending identity reveals.</p>}
+                        </section>
+
+                        <section className="space-y-4">
+                          <h2 className="text-lg font-bold text-surface-900 dark:text-white">Escalated Complaints</h2>
+                          {escalatedComplaints.map(item => (
+                            <article key={item.id} className="glass-card space-y-4 border-l-4 border-l-amber-500 p-5">
+                              <header className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                  <p className="font-semibold capitalize">{item.category.replace(/_/g, ' ')} · Case #{item.id}</p>
+                                  <p className="mt-1 text-xs text-surface-500">Reporter {item.reporter_anonymous_id} · Reported {item.reported_anonymous_id || 'content'}</p>
+                                </div>
+                                <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">{item.is_flagged ? 'Priority review' : 'Escalated'}</span>
+                              </header>
+                              <p className="whitespace-pre-wrap text-sm text-surface-700 dark:text-surface-300">{item.reason}</p>
+                              {item.evidence_ref && <p className="text-xs text-surface-500">Evidence: {item.evidence_ref}</p>}
+                              {item.faculty_note && <p className="rounded-lg bg-surface-50 p-3 text-xs text-surface-600 dark:bg-surface-800/60 dark:text-surface-300">Faculty escalation note: {item.faculty_note}</p>}
+                              <textarea rows={2} maxLength={1000} value={complaintNotes[item.id] || ''} onChange={event => setComplaintNotes(current => ({ ...current, [item.id]: event.target.value }))} placeholder="Resolution or rejection note (10+ characters)" className="w-full rounded-lg border border-surface-200 bg-white p-3 text-sm dark:border-surface-700 dark:bg-surface-950" />
+                              <div className="flex flex-wrap gap-2">
+                                <button type="button" onClick={() => resolveEscalatedComplaint(item.id, 'resolve')} className="btn-primary inline-flex items-center gap-2"><Check className="h-4 w-4" /> Resolve</button>
+                                <button type="button" onClick={() => resolveEscalatedComplaint(item.id, 'reject')} className="btn-secondary inline-flex items-center gap-2"><X className="h-4 w-4" /> Reject</button>
+                                <button type="button" onClick={() => loadComplaintAudit(item.id)} className="btn-secondary inline-flex items-center gap-2"><History className="h-4 w-4" /> Load permanent history</button>
+                              </div>
+                              {complaintAudits[item.id] && (
+                                <ol className="space-y-2 border-t border-surface-200 pt-4 dark:border-surface-700">
+                                  {complaintAudits[item.id].map(entry => (
+                                    <li key={entry.id} className="text-xs text-surface-600 dark:text-surface-300"><strong>{entry.action}</strong> · Actor {entry.actor_id || 'deleted account'} · {new Date(entry.created_at).toLocaleString()} · {JSON.stringify(entry.details)}</li>
+                                  ))}
+                                  {complaintAudits[item.id].length === 0 && <li className="text-xs text-surface-500">No history records yet.</li>}
+                                </ol>
+                              )}
+                            </article>
+                          ))}
+                          {escalatedComplaints.length === 0 && <div className="glass-card p-10 text-center text-surface-500">No escalated complaints.</div>}
+                        </section>
+                      </div>
+                    )}
+
+                    {activeTab === 'appeals' && !adminSectionLoading && (
+                      <section className="space-y-4">
+                        <h2 className="text-lg font-bold">Pending Notice Appeals</h2>
+                        {noticeAppeals.map(appeal => (
+                          <article key={appeal.id} className="glass-card space-y-3 p-5">
+                            <div className="flex items-center justify-between gap-3"><h3 className="font-semibold">{appeal.title}</h3><span className="text-xs text-surface-500">Appeal #{appeal.id} · {appeal.anonymous_id}</span></div>
+                            <p className="whitespace-pre-wrap text-sm text-surface-600 dark:text-surface-300">{appeal.body}</p>
+                            <p className="text-sm text-amber-700 dark:text-amber-300">Appeal reason: {appeal.reason}</p>
+                            <textarea rows={2} maxLength={1000} value={appealNotes[appeal.id] || ''} onChange={event => setAppealNotes(current => ({ ...current, [appeal.id]: event.target.value }))} placeholder="Optional decision note" className="w-full rounded-lg border border-surface-200 bg-white p-3 text-sm dark:border-surface-700 dark:bg-surface-950" />
+                            <div className="flex gap-2"><button type="button" onClick={() => reviewNoticeAppeal(appeal.id, 'publish')} className="btn-primary">Approve appeal</button><button type="button" onClick={() => reviewNoticeAppeal(appeal.id, 'reject')} className="btn-secondary">Reject appeal</button></div>
+                          </article>
+                        ))}
+                        {noticeAppeals.length === 0 && <div className="glass-card p-10 text-center text-surface-500">No pending notice appeals.</div>}
+                      </section>
+                    )}
+
+                    {activeTab === 'repeat-offenders' && !adminSectionLoading && (
+                      <section className="glass-card overflow-hidden">
+                        <div className="border-b border-surface-200 p-5 dark:border-surface-800"><h2 className="font-bold">Repeat Offender Review</h2><p className="mt-1 text-xs text-surface-500">Accounts with at least three recorded violations in the last 90 days.</p></div>
+                        <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-surface-50 text-xs uppercase text-surface-500 dark:bg-surface-800"><tr><th className="p-4">Anonymous ID</th><th className="p-4">Violations</th><th className="p-4">High severity</th><th className="p-4">Behavior score</th><th className="p-4">Latest</th></tr></thead><tbody>{repeatOffenders.map(row => <tr key={row.user_id} className="border-t border-surface-100 dark:border-surface-800"><td className="p-4 font-mono">{row.anonymous_id}</td><td className="p-4">{row.violation_count}</td><td className="p-4">{row.high_severity_count}</td><td className="p-4">{row.behavior_score}</td><td className="p-4">{new Date(row.last_violation_at).toLocaleString()}</td></tr>)}</tbody></table></div>
+                        {repeatOffenders.length === 0 && <p className="p-8 text-center text-sm text-surface-500">No repeat-offender cases meet this threshold.</p>}
+                      </section>
+                    )}
+
+                    {activeTab === 'security' && !adminSectionLoading && securitySignals && (
+                      <section className="space-y-4">
+                        <div className="grid gap-4 sm:grid-cols-2"><div className="glass-card p-5"><p className="text-xs uppercase text-surface-500">Locked / repeated-failure accounts</p><p className="mt-2 text-2xl font-bold">{securitySignals.locked_account_count}</p></div><div className="glass-card p-5"><p className="text-xs uppercase text-surface-500">High-severity violations · 24h</p><p className="mt-2 text-2xl font-bold">{securitySignals.high_severity_violations_24h}</p></div></div>
+                        <div className="glass-card overflow-hidden"><div className="border-b border-surface-200 p-5 dark:border-surface-800"><h2 className="font-bold">Accounts Requiring Security Review</h2></div><div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-surface-50 text-xs uppercase text-surface-500 dark:bg-surface-800"><tr><th className="p-4">Anonymous ID</th><th className="p-4">Role signal</th><th className="p-4">Failed attempts</th><th className="p-4">Lock expires</th></tr></thead><tbody>{securitySignals.accounts_requiring_review.map(row => <tr key={row.user_id} className="border-t border-surface-100 dark:border-surface-800"><td className="p-4 font-mono">{row.anonymous_id || 'Profile unavailable'}</td><td className="p-4">{row.is_locked ? 'Locked' : 'Repeated login failures'}</td><td className="p-4">{row.failed_attempts}</td><td className="p-4">{row.lock_until ? new Date(row.lock_until).toLocaleString() : '—'}</td></tr>)}</tbody></table></div>{securitySignals.accounts_requiring_review.length === 0 && <p className="p-8 text-center text-sm text-surface-500">No accounts currently require security review.</p>}</div>
+                      </section>
+                    )}
+
+                    {activeTab === 'rules' && !adminSectionLoading && (
+                      <section className="space-y-4">
+                        <form onSubmit={addModerationRule} className="glass-card flex flex-wrap items-end gap-3 p-5">
+                          <label className="min-w-[220px] flex-1 text-xs font-semibold">Keyword or phrase<input value={newRuleTerm} onChange={event => setNewRuleTerm(event.target.value)} maxLength={120} required className="input-field mt-1 w-full" /></label>
+                          <label className="text-xs font-semibold">Severity<select value={newRuleSeverity} onChange={event => setNewRuleSeverity(event.target.value)} className="input-field mt-1"><option value="MEDIUM">Medium</option><option value="HIGH">High</option></select></label>
+                          <button type="submit" className="btn-primary">Add rule</button>
+                        </form>
+                        <div className="glass-card divide-y divide-surface-200 dark:divide-surface-800">{moderationRules.map(rule => <div key={rule.id} className="flex flex-wrap items-center gap-3 p-4"><span className="min-w-[180px] flex-1 font-mono text-sm">{rule.term}</span><select value={rule.severity} onChange={event => updateModerationRule(rule.id, { severity: event.target.value })} className="input-field text-xs"><option value="MEDIUM">Medium</option><option value="HIGH">High</option></select><label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={Boolean(rule.enabled)} onChange={event => updateModerationRule(rule.id, { enabled: event.target.checked })} /> Enabled</label><button type="button" onClick={() => removeModerationRule(rule.id)} className="text-xs font-semibold text-red-600">Delete</button></div>)}{moderationRules.length === 0 && <p className="p-8 text-center text-sm text-surface-500">No custom rules. Built-in safety terms remain active.</p>}</div>
+                      </section>
+                    )}
+
+                    {activeTab === 'policy-review' && !adminSectionLoading && (
+                      <section className="space-y-4">
+                        <form onSubmit={savePolicyReview} className="glass-card space-y-3 p-5"><h2 className="font-bold">Record This Week’s Policy Review</h2><textarea value={policySummary} onChange={event => setPolicySummary(event.target.value)} minLength={20} maxLength={5000} rows={4} required placeholder="Summarize policy changes, moderation trends, and actions agreed this week." className="w-full rounded-lg border border-surface-200 bg-white p-3 text-sm dark:border-surface-700 dark:bg-surface-950" /><button type="submit" className="btn-primary">Save weekly review</button></form>
+                        <div className="space-y-3">{policyReviews.map(review => <article key={review.id} className="glass-card p-5"><div className="flex justify-between gap-3 text-xs text-surface-500"><span>Week of {new Date(review.review_week).toLocaleDateString()}</span><span>{review.reviewer_email || 'Admin unavailable'}</span></div><p className="mt-3 whitespace-pre-wrap text-sm">{review.summary}</p></article>)}</div>
+                        {policyReviews.length === 0 && <p className="text-center text-sm text-surface-500">No weekly reviews have been recorded.</p>}
+                      </section>
+                    )}
+                        <p className="mt-1 text-xs text-surface-500">Justification: {request.justification}</p>
+                      </div>
+                      <button type="button" onClick={() => approveComplaintReveal(request.record_id)} className="btn-secondary inline-flex items-center gap-2"><Eye className="h-4 w-4" /> Approve as second admin</button>
+                    </div>
+                  ))}
+                  {pendingComplaintReveals.length === 0 && <p className="text-sm text-surface-500">No pending identity reveals.</p>}
+                </section>
+
+                <section className="space-y-4">
+                  <h2 className="text-lg font-bold text-surface-900 dark:text-white">Escalated Complaints</h2>
+                  {escalatedComplaints.map(item => (
+                    <article key={item.id} className="glass-card space-y-4 border-l-4 border-l-amber-500 p-5">
+                      <header className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold capitalize">{item.category.replace(/_/g, ' ')} · Case #{item.id}</p>
+                          <p className="mt-1 text-xs text-surface-500">Reporter {item.reporter_anonymous_id} · Reported {item.reported_anonymous_id || 'content'}</p>
+                        </div>
+                        <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">{item.is_flagged ? 'Priority review' : 'Escalated'}</span>
+                      </header>
+                      <p className="whitespace-pre-wrap text-sm text-surface-700 dark:text-surface-300">{item.reason}</p>
+                      {item.evidence_ref && <p className="text-xs text-surface-500">Evidence: {item.evidence_ref}</p>}
+                      {item.faculty_note && <p className="rounded-lg bg-surface-50 p-3 text-xs text-surface-600 dark:bg-surface-800/60 dark:text-surface-300">Faculty escalation note: {item.faculty_note}</p>}
+                      <textarea rows={2} maxLength={1000} value={complaintNotes[item.id] || ''} onChange={event => setComplaintNotes(current => ({ ...current, [item.id]: event.target.value }))} placeholder="Resolution or rejection note (10+ characters)" className="w-full rounded-lg border border-surface-200 bg-white p-3 text-sm dark:border-surface-700 dark:bg-surface-950" />
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={() => resolveEscalatedComplaint(item.id, 'resolve')} className="btn-primary inline-flex items-center gap-2"><Check className="h-4 w-4" /> Resolve</button>
+                        <button type="button" onClick={() => resolveEscalatedComplaint(item.id, 'reject')} className="btn-secondary inline-flex items-center gap-2"><X className="h-4 w-4" /> Reject</button>
+                        <button type="button" onClick={() => loadComplaintAudit(item.id)} className="btn-secondary inline-flex items-center gap-2"><History className="h-4 w-4" /> Load permanent history</button>
+                      </div>
+                      {complaintAudits[item.id] && (
+                        <ol className="space-y-2 border-t border-surface-200 pt-4 dark:border-surface-700">
+                          {complaintAudits[item.id].map(entry => (
+                            <li key={entry.id} className="text-xs text-surface-600 dark:text-surface-300"><strong>{entry.action}</strong> · Actor {entry.actor_id || 'deleted account'} · {new Date(entry.created_at).toLocaleString()} · {JSON.stringify(entry.details)}</li>
+                          ))}
+                          {complaintAudits[item.id].length === 0 && <li className="text-xs text-surface-500">No history records yet.</li>}
+                        </ol>
+                      )}
+                    </article>
+                  ))}
+                  {escalatedComplaints.length === 0 && <div className="glass-card p-10 text-center text-surface-500">No escalated complaints.</div>}
+                </section>
+              </div>
+            )}
+
+            {activeTab === 'appeals' && !adminSectionLoading && (
+              <section className="space-y-4">
+                <h2 className="text-lg font-bold">Pending Notice Appeals</h2>
+                {noticeAppeals.map(appeal => (
+                  <article key={appeal.id} className="glass-card space-y-3 p-5">
+                    <div className="flex items-center justify-between gap-3"><h3 className="font-semibold">{appeal.title}</h3><span className="text-xs text-surface-500">Appeal #{appeal.id} · {appeal.anonymous_id}</span></div>
+                    <p className="whitespace-pre-wrap text-sm text-surface-600 dark:text-surface-300">{appeal.body}</p>
+                    <p className="text-sm text-amber-700 dark:text-amber-300">Appeal reason: {appeal.reason}</p>
+                    <textarea rows={2} maxLength={1000} value={appealNotes[appeal.id] || ''} onChange={event => setAppealNotes(current => ({ ...current, [appeal.id]: event.target.value }))} placeholder="Optional decision note" className="w-full rounded-lg border border-surface-200 bg-white p-3 text-sm dark:border-surface-700 dark:bg-surface-950" />
+                    <div className="flex gap-2"><button type="button" onClick={() => reviewNoticeAppeal(appeal.id, 'publish')} className="btn-primary">Approve appeal</button><button type="button" onClick={() => reviewNoticeAppeal(appeal.id, 'reject')} className="btn-secondary">Reject appeal</button></div>
+                  </article>
+                ))}
+                {noticeAppeals.length === 0 && <div className="glass-card p-10 text-center text-surface-500">No pending notice appeals.</div>}
+              </section>
+            )}
+
+            {activeTab === 'repeat-offenders' && !adminSectionLoading && (
+              <section className="glass-card overflow-hidden">
+                <div className="border-b border-surface-200 p-5 dark:border-surface-800"><h2 className="font-bold">Repeat Offender Review</h2><p className="mt-1 text-xs text-surface-500">Accounts with at least three recorded violations in the last 90 days.</p></div>
+                <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-surface-50 text-xs uppercase text-surface-500 dark:bg-surface-800"><tr><th className="p-4">Anonymous ID</th><th className="p-4">Violations</th><th className="p-4">High severity</th><th className="p-4">Behavior score</th><th className="p-4">Latest</th></tr></thead><tbody>{repeatOffenders.map(row => <tr key={row.user_id} className="border-t border-surface-100 dark:border-surface-800"><td className="p-4 font-mono">{row.anonymous_id}</td><td className="p-4">{row.violation_count}</td><td className="p-4">{row.high_severity_count}</td><td className="p-4">{row.behavior_score}</td><td className="p-4">{new Date(row.last_violation_at).toLocaleString()}</td></tr>)}</tbody></table></div>
+                {repeatOffenders.length === 0 && <p className="p-8 text-center text-sm text-surface-500">No repeat-offender cases meet this threshold.</p>}
+              </section>
+            )}
+
+            {activeTab === 'security' && !adminSectionLoading && securitySignals && (
+              <section className="space-y-4">
+                <p className="text-xs text-surface-500">Potential account-compromise indicators from failed logins and safety events; these are review signals, not confirmed breaches.</p>
+                <div className="grid gap-4 sm:grid-cols-3"><div className="glass-card p-5"><p className="text-xs uppercase text-surface-500">Accounts requiring review</p><p className="mt-2 text-2xl font-bold">{securitySignals.accounts_requiring_review_count}</p></div><div className="glass-card p-5"><p className="text-xs uppercase text-surface-500">Locked accounts</p><p className="mt-2 text-2xl font-bold">{securitySignals.locked_account_count}</p></div><div className="glass-card p-5"><p className="text-xs uppercase text-surface-500">High-severity violations · 24h</p><p className="mt-2 text-2xl font-bold">{securitySignals.high_severity_violations_24h}</p></div></div>
+                <div className="glass-card overflow-hidden"><div className="border-b border-surface-200 p-5 dark:border-surface-800"><h2 className="font-bold">Accounts Requiring Security Review</h2></div><div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-surface-50 text-xs uppercase text-surface-500 dark:bg-surface-800"><tr><th className="p-4">Anonymous ID</th><th className="p-4">Role signal</th><th className="p-4">Failed attempts</th><th className="p-4">Lock expires</th></tr></thead><tbody>{securitySignals.accounts_requiring_review.map(row => <tr key={row.user_id} className="border-t border-surface-100 dark:border-surface-800"><td className="p-4 font-mono">{row.anonymous_id || 'Profile unavailable'}</td><td className="p-4">{row.is_locked ? 'Locked' : 'Repeated login failures'}</td><td className="p-4">{row.failed_attempts}</td><td className="p-4">{row.lock_until ? new Date(row.lock_until).toLocaleString() : '—'}</td></tr>)}</tbody></table></div>{securitySignals.accounts_requiring_review.length === 0 && <p className="p-8 text-center text-sm text-surface-500">No accounts currently require security review.</p>}</div>
+              </section>
+            )}
+
+            {activeTab === 'rules' && !adminSectionLoading && (
+              <section className="space-y-4">
+                <form onSubmit={addModerationRule} className="glass-card flex flex-wrap items-end gap-3 p-5">
+                  <label className="min-w-[220px] flex-1 text-xs font-semibold">Keyword or phrase<input value={newRuleTerm} onChange={event => setNewRuleTerm(event.target.value)} maxLength={120} required className="input-field mt-1 w-full" /></label>
+                  <label className="text-xs font-semibold">Severity<select value={newRuleSeverity} onChange={event => setNewRuleSeverity(event.target.value)} className="input-field mt-1"><option value="MEDIUM">Medium</option><option value="HIGH">High</option></select></label>
+                  <button type="submit" className="btn-primary">Add rule</button>
+                </form>
+                <div className="glass-card divide-y divide-surface-200 dark:divide-surface-800">{moderationRules.map(rule => <div key={rule.id} className="flex flex-wrap items-center gap-3 p-4"><span className="min-w-[180px] flex-1 font-mono text-sm">{rule.term}</span><select value={rule.severity} onChange={event => updateModerationRule(rule.id, { severity: event.target.value })} className="input-field text-xs"><option value="MEDIUM">Medium</option><option value="HIGH">High</option></select><label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={Boolean(rule.enabled)} onChange={event => updateModerationRule(rule.id, { enabled: event.target.checked })} /> Enabled</label><button type="button" onClick={() => removeModerationRule(rule.id)} className="text-xs font-semibold text-red-600">Delete</button></div>)}{moderationRules.length === 0 && <p className="p-8 text-center text-sm text-surface-500">No custom rules. Built-in safety terms remain active.</p>}</div>
+              </section>
+            )}
+
+            {activeTab === 'policy-review' && !adminSectionLoading && (
+              <section className="space-y-4">
+                <form onSubmit={savePolicyReview} className="glass-card space-y-3 p-5"><h2 className="font-bold">Record This Week’s Policy Review</h2><textarea value={policySummary} onChange={event => setPolicySummary(event.target.value)} minLength={20} maxLength={5000} rows={4} required placeholder="Summarize policy changes, moderation trends, and actions agreed this week." className="w-full rounded-lg border border-surface-200 bg-white p-3 text-sm dark:border-surface-700 dark:bg-surface-950" /><button type="submit" className="btn-primary">Save weekly review</button></form>
+                <div className="space-y-3">{policyReviews.map(review => <article key={review.id} className="glass-card p-5"><div className="flex justify-between gap-3 text-xs text-surface-500"><span>Week of {new Date(review.review_week).toLocaleDateString()}</span><span>{review.reviewer_email || 'Admin unavailable'}</span></div><p className="mt-3 whitespace-pre-wrap text-sm">{review.summary}</p></article>)}</div>
+                {policyReviews.length === 0 && <p className="text-center text-sm text-surface-500">No weekly reviews have been recorded.</p>}
+              </section>
             )}
 
             {activeTab === 'audit-logs' && (
@@ -901,9 +1098,3 @@ export default function AdminPanel() {
   );
 }
 
-const getTierFromScore = (score) => {
-  if (score >= 80) return 'platinum';
-  if (score >= 60) return 'gold';
-  if (score >= 40) return 'silver';
-  return 'bronze';
-};

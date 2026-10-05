@@ -60,11 +60,18 @@ const reportUser = asyncHandler(async (req, res) => {
   res.status(HTTP_STATUS.CREATED).json({ success: true, message: 'Report submitted successfully' });
 });
 
-// REST Fallback for sending messages, mainly the platform is built for Socket.IO Usage
+/**
+ * ARCHITECTURE DECISION — Prompt 1, Task 2
+ * This endpoint is an explicit Socket.io-redirect stub.
+ * The single supported message-send path is the authenticated Socket.io `send_message` event.
+ * Clients that call this REST endpoint receive HTTP 400 as a clear misconfiguration signal.
+ * Do NOT implement REST message persistence here; that would bypass the abuse-detection
+ * and student-to-student enforcement in socket.config.js → send_message handler.
+ */
 const sendMessage = asyncHandler(async (req, res) => {
   res.status(HTTP_STATUS.BAD_REQUEST).json({
     success: false,
-    message: 'Please transmit real-time messages via the dedicated Socket.io protocol.',
+    message: 'Please transmit real-time messages via the dedicated Socket.io `send_message` event.',
   });
 });
 
@@ -85,7 +92,7 @@ const getBroadcasts = asyncHandler(async (req, res) => {
 
   const broadcasts = await communicationService.getDepartmentBroadcasts(profile.department);
 
-  res.status(HTTP_STATUS.OK).json({
+  return res.status(HTTP_STATUS.OK).json({
     success: true,
     data: broadcasts,
   });

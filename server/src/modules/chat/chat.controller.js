@@ -1,7 +1,7 @@
 const asyncHandler = require('../../utils/asyncHandler');
 const { HTTP_STATUS } = require('../../utils/constants');
 const chatService = require('./chat.service');
-const { getIO, getUserSockets } = require('../../config/socket.config');
+const { getIO } = require('../../config/socket.config');
 const { query } = require('../../config/db.config');
 
 const createRequest = asyncHandler(async (req, res) => {
@@ -65,6 +65,13 @@ const respondToChatRequest = asyncHandler(async (req, res) => {
     if (status === 'accepted') {
       if (senderAnonymousId) io.to(senderAnonymousId).emit('conversation:refresh');
       if (receiverAnonymousId) io.to(receiverAnonymousId).emit('conversation:refresh');
+    }
+
+    if (request.academic_request_id) {
+      io.emit('academic:request_updated', {
+        request_id: request.academic_request_id,
+        status: status === 'accepted' ? 'in_progress' : 'open'
+      });
     }
   }
 

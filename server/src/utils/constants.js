@@ -11,8 +11,6 @@
 const ROLES = Object.freeze({
   STUDENT: 'student',
   FACULTY: 'faculty',
-  COUNSELOR_ADMIN: 'counselor_admin',
-  DEPT_ADMIN: 'dept_admin',
   ADMIN: 'admin',
   SUPER_ADMIN: 'super_admin',
 });
@@ -29,10 +27,8 @@ const ROLE_LIST = Object.freeze(Object.values(ROLES));
 const ROLE_HIERARCHY = Object.freeze({
   [ROLES.STUDENT]: 0,
   [ROLES.FACULTY]: 1,
-  [ROLES.COUNSELOR_ADMIN]: 2,
-  [ROLES.DEPT_ADMIN]: 3,
-  [ROLES.ADMIN]: 4,
-  [ROLES.SUPER_ADMIN]: 5,
+  [ROLES.ADMIN]: 2,
+  [ROLES.SUPER_ADMIN]: 3,
 });
 
 /**
@@ -65,8 +61,6 @@ const AUDIT_ACTIONS = Object.freeze({
   DATA_RESTORE: 'DATA_RESTORE',
   MESSAGE_SENT: 'MESSAGE_SENT',
   MESSAGE_FLAGGED: 'MESSAGE_FLAGGED',
-  SOS_TRIGGERED: 'SOS_TRIGGERED',
-  SOS_RESOLVED: 'SOS_RESOLVED',
   MOOD_RECORDED: 'MOOD_RECORDED',
   ADMIN_ACTION: 'ADMIN_ACTION',
 });

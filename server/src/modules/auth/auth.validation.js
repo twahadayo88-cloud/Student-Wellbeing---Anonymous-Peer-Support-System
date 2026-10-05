@@ -7,8 +7,9 @@ function validateRegister(body) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const sanitizedEmail = body.email.toLowerCase();
     
-    // Configurable University domain restrictions
-    const configDomains = ['.edu.pk', '.edu', '.ac.uk', '.ac.pk']; 
+    const env = require('../../config/env.config');
+    const allowedDomain = env.allowedEmailDomain;
+    const defaultDomains = ['.edu.pk', '.edu', '.ac.uk', '.ac.pk']; 
     const blockedDomains = ['@gmail.com', '@yahoo.com', '@hotmail.com', '@outlook.com', '@live.com'];
 
     if (!emailRegex.test(sanitizedEmail)) {
@@ -18,9 +19,15 @@ function validateRegister(body) {
       if (isBlocked) {
         errors.push('Personal email addresses are not allowed. Please use your university email.');
       } else {
-        const isUniversityEmail = configDomains.some(domain => sanitizedEmail.endsWith(domain));
-        if (!isUniversityEmail) {
-          errors.push(`Registration is restricted to authorized university domains (${configDomains.join(', ')})`);
+        if (allowedDomain) {
+           if (!sanitizedEmail.endsWith(allowedDomain)) {
+             errors.push(`Registration is restricted to the authorized university domain (${allowedDomain})`);
+           }
+        } else {
+           const isUniversityEmail = defaultDomains.some(domain => sanitizedEmail.endsWith(domain));
+           if (!isUniversityEmail) {
+             errors.push(`Registration is restricted to authorized university domains (${defaultDomains.join(', ')})`);
+           }
         }
       }
     }

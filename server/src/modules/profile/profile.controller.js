@@ -30,7 +30,7 @@ const { validateProfileUpdate, validateConsentUpdate } = require('./profile.vali
  * @returns {object} Sanitized profile for API response
  */
 function sanitizeProfile(profile) {
-  const isFacultyOrAdmin = profile.role === 'faculty' || profile.role === 'admin';
+  const isFacultyOrAdmin = ['faculty', 'admin', 'super_admin'].includes(profile.role);
 
   if (isFacultyOrAdmin) {
     // FACULTY / ADMIN RESPONSE CONTRACT
@@ -42,14 +42,14 @@ function sanitizeProfile(profile) {
       subjects: profile.subjects || [],
       office_hours: profile.office_hours || [],
       skills: profile.skills || [],
-      trust_score: profile.trust_score || 50,
+      badge_tier: profile.badge_tier || 'bronze',
       bio: profile.bio || '',
       // Meta flags
       role: profile.role,
       consent_mood_tracking: profile.consent_mood_tracking,
       consent_data_collection: profile.consent_data_collection,
       consent_ai_analysis: profile.consent_ai_analysis,
-      onboarding_required: profile.onboarding_required
+      onboarding_required: profile.is_first_login === true || profile.onboarding_complete !== true
     };
   }
 
@@ -60,14 +60,14 @@ function sanitizeProfile(profile) {
     subjects: profile.subjects || [],
     department: profile.department || '',
     semester: profile.semester || null,
-    trust_score: profile.trust_score || 50,
+    badge_tier: profile.badge_tier || 'bronze',
     bio: profile.bio || '',
     // Meta flags
     role: profile.role,
     consent_mood_tracking: profile.consent_mood_tracking,
     consent_data_collection: profile.consent_data_collection,
     consent_ai_analysis: profile.consent_ai_analysis,
-    onboarding_required: profile.onboarding_required
+    onboarding_required: profile.is_first_login === true || profile.onboarding_complete !== true
   };
 }
 

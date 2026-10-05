@@ -62,6 +62,9 @@ const env = {
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
   },
 
+  // Domain
+  allowedEmailDomain: process.env.ALLOWED_EMAIL_DOMAIN || '',
+
   // Email
   smtp: {
     host: process.env.SMTP_HOST || '',

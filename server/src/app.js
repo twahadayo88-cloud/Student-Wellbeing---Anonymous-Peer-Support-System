@@ -27,6 +27,8 @@ const chatRoutes = require('./modules/chat/chat.routes');
 const feedbackRoutes = require('./modules/feedback/feedback.routes');
 const adminRoutes = require('./modules/admin/admin.routes');
 const academicRoutes = require('./modules/academic/academic.routes');
+const resourceRoutes = require('./modules/resources/resources.routes');
+const noticeRoutes = require('./modules/notices/notices.routes');
 
 const app = express();
 
@@ -75,9 +77,16 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/academic', academicRoutes);
+app.use('/api/resources', resourceRoutes);
+app.use('/api/notices', noticeRoutes);
+app.use('/api/mood', require('./modules/mood/mood.routes'));
 app.use('/api/trust', require('./modules/trust/trust.routes'));
+app.use('/api/complaints', require('./modules/complaint/complaint.routes'));
 logger.info('✓ Academic routes registered');
+logger.info('✓ Resource routes registered');
+logger.info('✓ Notice routes registered');
 logger.info('✓ Trust routes registered');
+logger.info('✓ Complaint routes registered');
 
 // ─── 404 Handler (after routes) ───────────────────────
 app.use(notFound);

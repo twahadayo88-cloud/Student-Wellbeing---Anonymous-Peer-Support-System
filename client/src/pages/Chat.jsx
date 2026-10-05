@@ -33,7 +33,7 @@ export default function Chat() {
   const [notification, setNotification] = useState(null);
   const [readAnnouncements, setReadAnnouncements] = useState([]);
 
-  const isFaculty = user?.role === 'faculty' || user?.role === 'admin';
+  const isFaculty = user?.role === 'faculty' || user?.role === 'admin' || user?.role === 'super_admin';
 
   // Persistence Key for Read Status (Per-User to avoid mixups)
   const READ_KEY = `read_broadcasts_${user?.anonymous_id}`;
@@ -109,7 +109,7 @@ export default function Chat() {
     const onAccepted = (data) => {
       setActivePeer({ 
         anonymous_id: data.receiver_anonymous_id,
-        conversation_id: data.id // The standardized ID we fixed in Phase 3/Respond
+        conversation_id: data.request_id // Use request_id sent by backend
       });
       setNotification({ type: 'success', msg: `Your chat request was accepted by ${data.receiver_anonymous_id}!` });
       setTimeout(() => setNotification(null), 4000);
@@ -130,11 +130,13 @@ export default function Chat() {
     socket.on('chat_request:accepted', onAccepted);
     socket.on('chat_request:declined', onDeclined);
     socket.on('system_broadcast', onBroadcast);
+    socket.on('conversation:refresh', fetchConversations);
 
     return () => {
       socket.off('chat_request:accepted', onAccepted);
       socket.off('chat_request:declined', onDeclined);
       socket.off('system_broadcast', onBroadcast);
+      socket.off('conversation:refresh', fetchConversations);
     };
   }, [socket]);
 

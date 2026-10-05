@@ -4,18 +4,18 @@ const academicController = require('./academic.controller');
 const { protect, restrictTo } = require('../../middleware/auth.middleware');
 
 // Public/Student Routes
-router.post('/request', protect, academicController.createRequest);
+router.post('/request', protect, restrictTo('student'), academicController.createRequest);
 router.get('/requests', protect, academicController.getRequests);
 router.get('/requests/my', protect, academicController.getMyRequests);
 router.get('/requests/:id', protect, academicController.getRequestById);
 router.patch('/requests/:id/status', protect, academicController.updateStatus);
 router.delete('/requests/:id', protect, academicController.closeRequest);
 
-router.post('/helper/register', protect, academicController.registerHelper);
-router.get('/helpers', protect, academicController.getHelpers);
-router.patch('/helper/availability', protect, academicController.updateAvailability);
+router.post('/helper/register', protect, restrictTo('student'), academicController.registerHelper);
+router.get('/helpers', protect, restrictTo('student'), academicController.getHelpers);
+router.patch('/helper/availability', protect, restrictTo('student'), academicController.updateAvailability);
 
-router.post('/requests/:id/appeal', protect, academicController.submitAppeal);
+router.post('/requests/:id/appeal', protect, restrictTo('student'), academicController.submitAppeal);
 
 // Faculty Routes
 router.get('/trends', protect, restrictTo('faculty'), academicController.getTrends);

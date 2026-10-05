@@ -23,12 +23,6 @@ router.get('/stats', adminController.getStats);
 router.get('/users', adminController.getUsers);
 
 /**
- * @route   GET /api/admin/sos
- * @desc    Get all SOS records
- */
-router.get('/sos', adminController.getSOSRecords);
-
-/**
  * @route   GET /api/admin/violations
  * @desc    Get all violation history
  */
@@ -39,6 +33,26 @@ router.get('/violations', adminController.getViolations);
  * @desc    Get all audit logs
  */
 router.get('/audit-logs', adminController.getAuditLogs);
+router.get('/repeat-offenders', adminController.getRepeatOffenders);
+router.get('/security/signals', adminController.getSecuritySignals);
+router.get('/appeals', adminController.getPendingAppeals);
+router.patch('/appeals/:id', adminController.reviewAppeal);
+router.get('/moderation/rules', adminController.getModerationRules);
+router.post('/moderation/rules', adminController.createModerationRule);
+router.patch('/moderation/rules/:id', adminController.updateModerationRule);
+router.delete('/moderation/rules/:id', adminController.deleteModerationRule);
+router.get('/policy-reviews', adminController.getPolicyReviews);
+router.post('/policy-reviews', adminController.recordPolicyReview);
+router.get('/repeat-offenders', adminController.getRepeatOffenders);
+router.get('/security/signals', adminController.getSecuritySignals);
+router.get('/appeals', adminController.getPendingAppeals);
+router.patch('/appeals/:id', adminController.reviewAppeal);
+router.get('/moderation/rules', adminController.getModerationRules);
+router.post('/moderation/rules', adminController.createModerationRule);
+router.patch('/moderation/rules/:id', adminController.updateModerationRule);
+router.delete('/moderation/rules/:id', adminController.deleteModerationRule);
+router.get('/policy-reviews', adminController.getPolicyReviews);
+router.post('/policy-reviews', adminController.recordPolicyReview);
 
 
 /**
@@ -46,12 +60,6 @@ router.get('/audit-logs', adminController.getAuditLogs);
  * @desc    Update user role
  */
 router.patch('/users/:id/role', adminController.updateRole);
-
-/**
- * @route   PATCH /api/admin/sos/:id/resolve
- * @desc    Mark SOS record as resolved
- */
-router.patch('/sos/:id/resolve', adminController.resolveSOS);
 
 /**
  * @route   PATCH /api/admin/users/:id/unlock

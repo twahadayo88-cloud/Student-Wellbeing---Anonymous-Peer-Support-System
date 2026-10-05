@@ -19,11 +19,11 @@ function determineRoleFromEmail(email) {
   }
   
   if (sanitized.includes('counselor')) {
-    return ROLES.COUNSELOR_ADMIN;
+    return ROLES.FACULTY;
   }
 
   if (sanitized.includes('hod_') || sanitized.includes('dept_head_')) {
-    return ROLES.DEPT_ADMIN;
+    return ROLES.ADMIN;
   }
 
   if (sanitized.includes('faculty') || sanitized.includes('staff')) {

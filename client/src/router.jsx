@@ -12,6 +12,11 @@ import VerifyOTP from './pages/VerifyOTP';
 import ResetPassword from './pages/ResetPassword';
 import AcademicBoard from './pages/AcademicBoard';
 import Leaderboard from './pages/Leaderboard';
+import MoodTracker from './pages/MoodTracker';
+import Complaints from './pages/Complaints';
+import ComplaintReview from './pages/ComplaintReview';
+import ResourceLibrary from './pages/ResourceLibrary';
+import NoticeBoard from './pages/NoticeBoard';
 import PrivateRoute from './components/auth/PrivateRoute';
 
 /**
@@ -31,9 +36,9 @@ function AppRouter() {
       <Route path="/reset-password" element={<PageWrapper><ResetPassword /></PageWrapper>} />
 
       {/* Protected Routes */}
-      <Route path="/dashboard" element={<PrivateRoute roles={['student', 'faculty', 'counselor_admin']}><PageWrapper><Dashboard /></PageWrapper></PrivateRoute>} />
+      <Route path="/dashboard" element={<PrivateRoute roles={['student', 'faculty', 'admin', 'super_admin']}><PageWrapper><Dashboard /></PageWrapper></PrivateRoute>} />
       <Route path="/profile" element={<PrivateRoute><PageWrapper><Profile /></PageWrapper></PrivateRoute>} />
-      <Route path="/chat" element={<PrivateRoute roles={['student', 'faculty', 'counselor_admin']}><PageWrapper><Chat /></PageWrapper></PrivateRoute>} />
+      <Route path="/chat" element={<PrivateRoute roles={['student', 'faculty', 'admin', 'super_admin']}><PageWrapper><Chat /></PageWrapper></PrivateRoute>} />
       <Route 
         path="/academic" 
         element={
@@ -49,6 +54,46 @@ function AppRouter() {
             <PageWrapper><Leaderboard /></PageWrapper>
           </PrivateRoute>
         } 
+      />
+      <Route
+        path="/mood"
+        element={
+          <PrivateRoute roles={['student']}>
+            <PageWrapper><MoodTracker /></PageWrapper>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/complaints"
+        element={
+          <PrivateRoute roles={['student']}>
+            <PageWrapper><Complaints /></PageWrapper>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/complaint-review"
+        element={
+          <PrivateRoute roles={['faculty', 'admin', 'super_admin']}>
+            <PageWrapper><ComplaintReview /></PageWrapper>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/resources"
+        element={
+          <PrivateRoute roles={['student', 'faculty']}>
+            <PageWrapper><ResourceLibrary /></PageWrapper>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/notices"
+        element={
+          <PrivateRoute roles={['student', 'faculty', 'admin', 'super_admin']}>
+            <PageWrapper><NoticeBoard /></PageWrapper>
+          </PrivateRoute>
+        }
       />
       <Route 
         path="/admin" 

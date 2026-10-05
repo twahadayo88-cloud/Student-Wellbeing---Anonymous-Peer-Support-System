@@ -1,40 +1,52 @@
 # PeerBridge — Student Wellbeing & Anonymous Peer Support Platform
 
-**PeerBridge** is a secure, anonymous-first, multi-university platform designed to empower students to seek and provide peer support for mental wellbeing and academic growth. Built with an event-driven micro-modular full-stack architecture, PeerBridge integrates real-time messaging, multi-layered AI content moderation, automated crisis intervention, dynamic trust gamification, and strict GDPR-compliant privacy engineering.
+**PeerBridge** is a secure, anonymous-first, multi-university platform designed to empower students to seek and provide peer support for mental wellbeing and academic growth. The repository contains a working foundation for authentication, profiles, academic requests, consent-based communication, trust scoring, administration, and Socket.io messaging. Some broader wellbeing, moderation, and database capabilities remain planned or need integration hardening; the implementation status below is the source of truth.
 
 ---
 
 ## 📋 Table of Contents
 
 - [Key Objectives & Design Philosophy](#-key-objectives--design-philosophy)
+- [Implementation Status](#-implementation-status)
 - [Architecture Overview](#-architecture-overview)
 - [Comprehensive Feature Coverage](#-comprehensive-feature-coverage)
-  - [1. Anonymous Identity & Privacy Engineering (GDPR)](#1-anonymous-identity--privacy-engineering-gdpr)
-  - [2. Multi-Role Access Control (RBAC)](#2-multi-role-access-control-rbac)
-  - [3. Academic Support Board & Peer Matching](#3-academic-support-board--peer-matching)
-  - [4. Dynamic Trust, Reputation & Gamification System](#4-dynamic-trust-reputation--gamification-system)
-  - [5. Real-Time Messaging & Consent-Based Chat System](#5-real-time-messaging--consent-based-chat-system)
-  - [6. Crisis SOS Emergency Response System](#6-crisis-sos-emergency-response-system)
-  - [7. Multi-Layered AI Content Moderation Pipeline](#7-multi-layered-ai-content-moderation-pipeline)
-  - [8. Wellbeing & Mood Tracking Analytics](#8-wellbeing--mood-tracking-analytics)
-  - [9. Admin Panel & Moderation Management](#9-admin-panel--moderation-management)
-  - [10. Automated Maintenance & Background Jobs](#10-automated-maintenance--background-jobs)
 - [Database Schema & Data Model](#-database-schema--data-model)
 - [API Route Reference](#-api-route-reference)
 - [Tech Stack & Dependencies](#-tech-stack--dependencies)
 - [Quick Start & Local Setup](#-quick-start--local-setup)
 - [Environment Configuration](#-environment-configuration)
 - [Available Scripts](#-available-scripts)
+- [Known Issues & Next Steps](#-known-issues--next-steps)
 
 ---
 
 ## 🎯 Key Objectives & Design Philosophy
 
-- **Anonymous-First Security**: Student PII (personally identifiable information) is completely decoupled from activity. Interaction takes place using pseudonymous identifiers (e.g. `Peer_XXXXX`).
-- **Privacy by Design**: Fully compliant with GDPR data protection principles, featuring explicit user consents, data audit logging, and a 30-day grace period for account deletion requests.
-- **Safety & Proactive Intervention**: Multi-layered automated filtering prevents hate speech, harassment, and threats while providing real-time panic response for self-harm or acute distress calls.
-- **Peer Empowerment & Trust Gamification**: Encourages constructive peer support by rewarding helpful interactions with dynamic trust scores, badge tiers, and monthly departmental leaderboards.
-- **Consensual Peer Communication**: Eliminates spam and unsolicited harassment by requiring consent before any direct 1-on-1 messaging session opens.
+- **Anonymous-First Security**: Public activity uses pseudonymous identifiers such as `Peer_XXXXX`; the current implementation still requires a database mapping between the account and pseudonym.
+- **Privacy by Design**: Consent fields, audit logging, token invalidation, and scheduled account deletion are represented in the backend.
+- **Safety & Proactive Intervention**: A Socket.io SOS path and local content checks exist, but the REST safety workflow and reliable SOS persistence are not complete.
+- **Peer Empowerment & Trust Gamification**: Trust history, badges, leaderboard endpoints, feedback, and admin overrides exist; the client leaderboard is not fully connected to live data.
+- **Consensual Peer Communication**: Chat request, accept/decline, block/report, and Socket.io conversation flows are present. Direct HTTP message sending is intentionally a rejecting stub.
+
+---
+
+## 🚧 Implementation Status
+
+This audit compares the README claims with the files currently in `server/` and `client/`. Roughly **55% of the documented product scope is implemented in source**, but less is reliably runnable end to end because the startup schema and several service queries disagree.
+
+| Area | Status | Current reality |
+| :--- | :---: | :--- |
+| Authentication, JWT, OTP, logout | ✅ | Register, login, logout, password reset, OTP verification, lockout, and blacklist code exist. Email delivery falls back to development logging when SMTP is unset. |
+| Anonymous identity, consent, GDPR deletion | 🟡 | Pseudonyms, profile consent, deletion scheduling, cancellation, and cleanup jobs exist; identity history and deletion dependencies are incomplete. |
+| RBAC | 🟡 | Student, faculty, admin, and super-admin checks exist. The client also references `counselor_admin`, which is not a database role. |
+| Academic support board and helper matching | ✅ | Requests, helpers, availability, matching recommendations, appeals, trends, and admin review exist. Features a robust 1-minute offer cascade engine and bounded feedback loop adjustments for helper matching. |
+| Trust, badges, feedback, leaderboard | 🟡 | Backend services and routes exist, but trust recalculation expects a missing table and the client leaderboard contains fallback/mock rows. |
+| Consent-based chat and real-time messaging | 🟡 | Socket.io chat, presence-related handlers, typing/read events, requests, blocks, reports, and broadcasts exist. REST message sending is a stub. |
+| SOS emergency response | 🟡 | The SOS button and socket dispatch exist, but SOS inserts/selects use column and enum names that do not match the migration schema. |
+| AI moderation | 🟡 | Keyword/regex and TensorFlow toxicity checks exist. Gemini and Perspective are local wrappers, not configured external API integrations; moderation queue tables are not in startup SQL. |
+| Mood tracking and wellbeing analytics | ❌ | A service helper and table definition exist, but no mounted mood API or user-facing mood page exists, and the service uses `notes` while SQL defines `note`. |
+| Admin and moderation panel | 🟡 | Admin UI, stats, user management, SOS, audit, moderation, escalation, and trust screens exist, but route names differ from the original README and some queries depend on missing tables/columns. |
+| Automated maintenance | 🟡 | Cron jobs cover deletion, chat expiration, wellness tasks, identity rotation, academic cleanup, and trust updates. OTP cleanup and several referenced legacy tables are absent. |
 
 ---
 
@@ -43,258 +55,261 @@
 ```
                           ┌───────────────────────────┐
                           │   React 18 + Vite Client  │
-                          │ (Tailwind CSS, Recharts)  │
+                          │ Tailwind, Framer Motion,  │
+                          │ Recharts, Socket.io       │
                           └─────────────┬─────────────┘
-                                        │ (HTTP REST / WebSockets)
+                                        │ HTTP REST / WebSockets
                                         ▼
                           ┌───────────────────────────┐
                           │   Node.js / Express API   │
                           └──────┬──────────────┬─────┘
                                  │              │
-        ┌────────────────────────┼──────────────┼────────────────────────┐
-        ▼                        ▼              ▼                        ▼
-┌──────────────┐         ┌──────────────┐ ┌───────────┐        ┌──────────────────┐
-│ MySQL 8.0 DB │         │ Socket.io    │ │ Node-Cron │        │ AI Moderation    │
-│ (Raw SQL)    │         │ Real-Time    │ │ Purge Engine│       │ (Gemini / TFJS / │
-└──────────────┘         └──────────────┘ └───────────┘        │ Perspective API) │
-                                                               └──────────────────┘
+                         ┌───────▼──────┐ ┌─────▼────────────┐
+                         │ MySQL / SQL  │ │ Socket.io + Cron │
+                         │ migrations   │ │ real-time/jobs   │
+                         └──────────────┘ └──────────────────┘
 ```
 
-The application is structured into two main decoupled workspaces:
-- **`server/`**: Express.js REST API with feature-focused domain modules, Socket.io real-time server, cron cleanups, and MySQL query pooling.
-- **`client/`**: Vite React single-page application utilizing modern Context API for state management, framer-motion animations, and Recharts analytics.
+The application is split into two workspaces:
+- **`server/`**: Express REST API, MySQL connection pool, Socket.io handlers, feature modules, and cron jobs.
+- **`client/`**: Vite React single-page application using Context API, Tailwind CSS, Framer Motion, Recharts, and Axios.
 
 ---
 
 ## 🌟 Comprehensive Feature Coverage
 
-### 1. Anonymous Identity & Privacy Engineering (GDPR)
-- **Pseudonymous Identity Generator**: Automatically generates non-reversible pseudonyms (`anonymous_id`) for every profile upon registration to safeguard user identity across chat rooms and public support boards.
-- **GDPR Consent Controls**: Users retain explicit toggles for Data Collection, Mood Tracking, and AI Analysis consent.
-- **Account Deletion Workflow**: Supports user-requested account deletion with a 30-day grace period, warning notifications, and an automated background purge.
-- **Token Blacklisting**: Revokes JWTs on user logout or emergency account suspension to instantly terminate active sessions.
+### 1. Anonymous Identity & Privacy Engineering (🟡 Partial)
+- Registration creates an anonymous profile identifier and profile/public lookup code exists.
+- Consent update, onboarding, deletion scheduling, deletion cancellation, JWT blacklist, and audit logging code exist.
+- The startup migration creates `anonymous_id_map`, but identity-history support is separate and not included in the startup migration.
 
-### 2. Multi-Role Access Control (RBAC)
-Supports granular permissions across 4 primary user roles:
-- **Student**: Access to wellbeing tools, academic posting, helper registration, peer chat, and leaderboard rankings.
-- **Faculty**: Access to departmental broadcasts, crisis SOS emergency alerts, student risk monitoring, and academic trend analytics.
-- **Admin**: System-wide operational monitoring, user trust adjustments, moderation appeal review, and audit log inspection.
-- **Super Admin**: Master account privileges including role elevation, system seeding, and full database access.
+### 2. Multi-Role Access Control (🟡 Partial)
+- Backend role middleware supports `student`, `faculty`, `admin`, and `super_admin`.
+- Admin and faculty route restrictions are present.
+- `counselor_admin` appears in client route guards but is not in the SQL role enum and has no complete backend role flow.
 
-### 3. Academic Support Board & Peer Matching
-- **Help Request Posting**: Students post requests categorized by subject and urgency level (`low`, `medium`, `high`, `critical`).
-- **Anti-Spam Daily Limits**: Enforces post limits per user (`daily_post_tracker`) to maintain high board quality.
-- **Peer Helper Directory**: Students register as helpers by setting their subject expertise, availability status (`available`, `busy`, `offline`), and maximum concurrent help capacity.
-- **Smart Peer Matcher**: Queries qualified helpers based on subject alignment, current capacity, and minimum trust score threshold (≥30).
-- **Auto-Initiated Helper Chat**: Initiating help automatically generates a consent-accepted chat session and sends an auto-context introduction message.
-- **Faculty Trend Dashboard (`FacultyTrends.jsx`)**: Aggregates 30-day academic stress analytics by subject and department for faculty awareness.
+### 3. Academic Support Board & Peer Matching (🟡 Partial)
+- Requests, request lists/details/status/close, helper registration, helper availability, recommendations, faculty fallback, appeals, trends, and admin approve/reject code exist.
+- The client includes academic board, request cards, posting, details, and faculty trends components.
+- Initiating a chat and resolving/rating a request are not the README REST endpoints; these flows are handled through existing controllers/services and Socket.io paths, with no matching README route contract.
 
-### 4. Dynamic Trust, Reputation & Gamification System
-- **Trust & Behavior Score Engine**: Dynamic score system (0–100) reflecting a user’s platform standing.
-  - **Score Boosts**: +10 for successful peer help, +5 for 5-star feedback, +3 for fast response (<5 mins), +15 for helping with critical urgency requests.
-  - **Score Penalties**: -2 for safety warnings, -4 for content removal, -6 for account suspension, -4 for false SOS alarms.
-- **Automated Badge Tier Escalation**: Users automatically earn and unlock tier badges:
-  - 🥉 **Bronze** (0–39): New member
-  - 🥈 **Silver** (40–59): Trusted peer
-  - 🥇 **Gold** (60–79): Reliable helper
-  - 💎 **Platinum** (80–100): Elite contributor
-- **Monthly Peer Leaderboard (`Leaderboard.jsx`)**: Real-time departmental rankings derived from help count, average peer ratings, and trust scores.
-- **Trust Audit History**: Complete record of all reputation changes stored in `trust_score_history`.
+### 4. Dynamic Trust, Reputation & Gamification (🟡 Partial)
+- Trust score changes, history, badges, feedback, leaderboard service, and admin override/reset routes exist.
+- The backend references `trust_score_components`, which is not created by the startup SQL.
+- `Leaderboard.jsx` has a hard-coded fallback dataset, so live leaderboard behavior is not guaranteed.
 
-### 5. Real-Time Messaging & Consent-Based Chat System
-- **Consent-Based Chat Requests**: Users must send a chat request specifying subject context before 1-on-1 direct messaging opens.
-- **Socket.io Integration**: Provides instant messaging, active user presence, typing indicators, and read confirmations.
-- **Multi-Mode Communication**: Supports standard `chat_only`, `study_group` collaboration, and `campus_meeting` coordination.
-- **Ephemeral Messages**: Configurable message retention and auto-expiration (`expires_at`).
-- **Departmental & Emergency Broadcasts**: Enables faculty and administrators to publish persistent announcements targeted by department.
+### 5. Real-Time Messaging & Consent-Based Chat (🟡 Partial)
+- Socket.io handlers cover chat messages, typing/read events, requests, blocks, reports, broadcasts, and several chat modes.
+- REST chat request routes are available under `/api/chat`.
+- `POST /api/communication/messages` is a documented compatibility stub — it always returns HTTP 400 directing the client to use Socket.io. All chat messages **must** be sent through the authenticated Socket.io `send_message` event. No client code calls this REST endpoint.
 
-### 6. Crisis SOS Emergency Response System
-- **One-Click Emergency Panic Button (`SOSButton.jsx`)**: Students in acute distress can instantly emit a crisis signal across categories (`self-harm`, `harassment`, `medical`, `other`) with severity levels (`LOW`, `MEDIUM`, `HIGH`).
-- **Context-Aware Payload**: Automatically attaches recent mood tracking data to assist responders while keeping student identity protected where applicable.
-- **Real-Time Dispatch**: Emits instant WebSocket alerts to online faculty members and administration dashboards for immediate intervention.
-- **Faculty Assignment & Resolution**: Admins/Faculty can claim incident records, track intervention history, and mark cases resolved.
+### 6. Crisis SOS Emergency Response (🟡 Partial, currently broken)
+- `SOSButton.jsx` emits a Socket.io SOS event and the server has dispatch/assignment-oriented handlers.
+- The migration uses `student_id`, `category` values `self-harm|harassment|medical|other`, and uppercase severities. Socket/service code uses incompatible names such as `user_id`, `trigger_reason`, `mental_health`, and lowercase `high` in places, so persistence is unreliable.
+- No `/api/communication/sos` or `/api/safety/sos-records` REST module is mounted.
 
-### 7. Multi-Layered AI Content Moderation Pipeline
-Every submitted post, request, or profile update passes through a 3-layer automated moderation system:
-1. **Layer 1: Multilingual Keyword & Regex Filter**: Detects self-harm, violent threats, harassment, and abusive slang across **English**, **Roman Urdu**, and **Urdu Script**.
-2. **Layer 2: Perspective API & TensorFlow Toxicity**: Evaluates severe toxicity, insult, and threat probability scores (`@tensorflow-models/toxicity`, `@tensorflow/tfjs`).
-3. **Layer 3: Google Gemini API Context Analysis**: Analyzes contextual risk patterns (`geminiApi.js`) to catch subtle or indirect harassment.
-- **Automated Escalation Pipeline**:
-  - **Warning**: Notifies the user and deducts behavior points.
-  - **Content Removal**: Removes violating content from public boards.
-  - **Account Suspension**: Automatically locks accounts for 24 hours if behavior score drops below 10, invalidating active sessions.
-- **Moderation Appeals Queue**: Flagged academic posts enter an appeal pipeline (`request_appeals`) allowing users to request human review by admins.
+### 7. Multi-Layered Content Moderation (🟡 Partial)
+- Multilingual keyword/regex checks and TensorFlow toxicity are present.
+- `geminiApi.js` and `perspectiveApi.js` are local wrappers; there is no installed Google Gemini/Perspective SDK or configured API-key path.
+- Moderation routes exist below `/api/admin/moderation`, but `moderation_queue` is not created by the startup migrations.
 
-### 8. Wellbeing & Mood Tracking Analytics
-- **Daily Mood Logger**: Students track their emotional state (1–5 score) with optional personal reflection notes.
-- **Personal Trend Visualization**: Interactive charts mapping emotional patterns over time.
-- **Emergency Context Integration**: Integrates recent mood logs into SOS emergency dispatches for emergency personnel context.
+### 8. Wellbeing & Mood Tracking Analytics (❌ Not a complete feature)
+- `mood_entries` exists in the migration and service methods reference it.
+- No safety router is mounted by `app.js`, no mood REST endpoints are available, and no React mood-tracking screen exists.
+- The service reads/writes `notes`, while the migration column is `note`.
 
-### 9. Admin Panel & Moderation Management
-- **Centralized Telemetry Dashboard (`AdminPanel.jsx`)**: Displays real-time operational statistics for total users, active SOS calls, pending academic appeals, and trust score distribution.
-- **Moderation Queue Management**: Human oversight interface to approve, dismiss, or escalate flagged content.
-- **User Account Management**: Soft-lock/unlock user accounts, override trust scores, and inspect system audit logs (`audit_logs`).
+### 9. Admin Panel & Moderation Management (🟡 Partial)
+- `AdminPanel.jsx` and backend admin/safety controllers provide stats, users, SOS, violations, audit logs, moderation, escalation, low-score, and identity-reveal screens/routes.
+- The README route names `/analytics`, `/moderation-queue`, `/appeals`, and `/adjust-trust` are not the routes registered by the application.
+- Some admin queries use `s.timestamp` although the SOS schema defines `created_at`.
 
-### 10. Automated Maintenance & Background Jobs
-Powered by `node-cron` (`cleaner.cron.js`), the server continuously performs background tasks:
-- Purges expired 6-digit email OTPs.
-- Hard-deletes user profiles whose 30-day GDPR deletion window has elapsed.
-- Cleans up expired chat requests and ephemeral messages.
-- Re-aggregates monthly leaderboard ranks.
+### 10. Automated Maintenance & Background Jobs (🟡 Partial)
+- `cleaner.cron.js` starts jobs for deletion, chat expiry, wellness tasks, anonymous rotation, academic cleanup, and trust updates.
+- There is no dedicated expired-OTP cleanup matching the original README claim.
+- Cleanup code references legacy tables such as `notice_board_posts` and `library_uploads`, which are not in the provided schema files.
 
 ---
 
 ## 🗄️ Database Schema & Data Model
 
-The application uses MySQL 8.0 with relational integrity, foreign key cascades, and indexing for optimal query performance.
+`server/database_schema.sql` is a minimal base schema containing only `users`, `profiles`, and `audit_logs`. On startup, `server/database_migration.sql` is run followed by `src/database/apply_migration.js`; that migration assumes the base tables and other legacy tables already exist. It is not currently a complete fresh-database schema because it uses non-idempotent `ALTER TABLE` statements and does not create every table queried by the application.
 
-| Table Name | Purpose / Functionality |
-| :--- | :--- |
-| `users` | Primary user credential store, roles, lock states, OTP verification, and deletion schedule timestamps. |
-| `profiles` | User profiles containing anonymous IDs, role-specific attributes (semester, department, skills), trust scores, and consent preferences. |
-| `anonymous_id_map` | Secure mapping between system `user_id` and public `anonymous_id`. |
-| `academic_requests` | Peer support requests detailing subject, urgency, description, status, helper assignment, and AI moderation flags. |
-| `helper_listings` | Directory of peer mentors with subject JSON arrays, current help count, and max capacity. |
-| `request_appeals` | Moderation appeal submissions for flagged or rejected academic requests. |
-| `daily_post_tracker` | Anti-spam tracker maintaining daily post counts per user. |
-| `chat_requests` | Consent-based messaging invitations with status tracking (`pending`, `accepted`, `declined`, `expired`). |
-| `chat_messages` | Real-time chat history supporting room keys, chat modes, broadcast flags, and auto-expiration timestamps. |
-| `sos_records` | Crisis emergency records with category, severity, status, assigned faculty, and attached mood data. |
-| `mood_entries` | Time-series mood tracking logs for student self-monitoring. |
-| `trust_score_history` | Audit log tracking every trust score modification, reason, and delta. |
-| `badge_tiers` | User achievement tiers (`bronze`, `silver`, `gold`, `platinum`) and tier unlock timestamps. |
-| `monthly_leaderboard` | Pre-aggregated monthly rankings per department for performant leaderboard queries. |
-| `feedback` | Peer ratings (1–5 stars) and comments linked to completed support sessions. |
-| `broadcasts` | Departmental and campus-wide announcements published by faculty/admins. |
-| `blacklisted_tokens` | Revoked JWT tokens for secure session invalidation. |
-| `audit_logs` | System-wide administrative action logs for security auditing. |
+| Table Name | Status | Actual purpose / discrepancy |
+| :--- | :---: | :--- |
+| `users` | ✅ | Base users, roles, locks, deletion and OTP fields. |
+| `profiles` | ✅ | Base profile plus migration extensions for pseudonym, consent, skills, subjects, department, and trust. |
+| `anonymous_id_map` | ✅ | Startup migration mapping account IDs to public anonymous IDs. |
+| `academic_requests` | ✅ | Requests, urgency, status, moderation, matching, and appeals. |
+| `helper_listings` | ✅ | Helper subjects, availability, and capacity. |
+| `request_appeals` | ✅ | Appeal records and review state. |
+| `daily_post_tracker` | ✅ | Per-user daily post counts. |
+| `chat_requests` | ✅ | Consent request and expiry state. |
+| `chat_messages` | 🟡 | Required by code and altered by migration, but not created in either supplied schema file. |
+| `sos_records` | 🟡 | Created, but service/socket/admin column and enum expectations do not consistently match it. |
+| `mood_entries` | 🟡 | Created with `note`; service expects `notes`; no API/UI workflow. |
+| `trust_score_history` | ✅ | Trust changes and reasons. |
+| `badge_tiers` | ✅ | Current and previous badge tiers. |
+| `monthly_leaderboard` | ✅ | Monthly department rankings. |
+| `feedback` | ✅ | Ratings and comments; request foreign key targets `chat_requests`. |
+| `helper_feedback` | ✅ | Ratings from resolved academic requests powering the matching feedback loop. |
+| `chat_offer_exclusions` | ✅ | Tracks helpers who declined/timed out of requests for cascade exclusions. |
+| `broadcasts` | ✅ | Department announcements. |
+| `blacklisted_tokens` | ✅ | Revoked JWTs. |
+| `audit_logs` | ✅ | Administrative audit entries. |
+| `scheduled_tasks` | 🟡 | Created, then altered again; duplicate/non-idempotent column statements remain. |
+| `moderation_queue` | ❌ | Queried by safety/admin code but not created by supplied startup SQL. |
+| `notifications` | ❌ | Queried by safety code but not created by supplied startup SQL. |
+| `trust_score_components` | ❌ | Queried by trust code but not created by supplied startup SQL. |
+| `anonymous_id_history` | ❌ | Referenced by identity rotation but only present in a separate migration not run by `server.js`. |
+
+The schema therefore covers most README table names, but **a clean database setup cannot be considered reliable until the base schema, migration ordering, missing tables, duplicate alters, and service column names are reconciled**.
 
 ---
 
 ## 🔌 API Route Reference
 
-### 🔑 Auth Module (`/api/auth`)
-- `POST /api/auth/register` — Register a new student/faculty account.
-- `POST /api/auth/login` — Authenticate user, issue JWT token.
-- `POST /api/auth/logout` — Blacklist current active token.
-- `POST /api/auth/forgot-password` — Generate & send 6-digit email OTP.
-- `POST /api/auth/verify-otp` — Validate reset OTP.
-- `POST /api/auth/reset-password` — Update user password with valid OTP session.
+These are the routes actually mounted by `server/src/app.js` and their route modules. All routes below except `/api/health` require authentication where noted by the route middleware.
 
-### 👤 Profile & Privacy Module (`/api/profile`)
-- `GET /api/profile/me` — Fetch current logged-in user profile & consent settings.
-- `PUT /api/profile/me` — Update profile details, skills, department, and office hours.
-- `PUT /api/profile/onboarding` — Save initial onboarding setup & consent choices.
-- `POST /api/profile/request-deletion` — Schedule account deletion under GDPR 30-day grace period.
-- `POST /api/profile/cancel-deletion` — Cancel scheduled account deletion.
+### Health and Auth (`/api/health`, `/api/auth`)
+- `GET /api/health`
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `POST /api/auth/forgot-password`
+- `POST /api/auth/verify-otp`
+- `POST /api/auth/reset-password`
 
-### 📚 Academic Support Module (`/api/academic`)
-- `GET /api/academic/requests` — Retrieve open academic help requests (optional subject filter).
-- `GET /api/academic/my-requests` — Retrieve help requests posted by the logged-in user.
-- `POST /api/academic/requests` — Submit a new academic help request (AI moderated & rate limited).
-- `POST /api/academic/register-helper` — Register or update subjects as a peer helper.
-- `GET /api/academic/helpers` — Query available peer helpers for a subject.
-- `POST /api/academic/initiate-chat` — Accept a request and launch a peer chat room.
-- `POST /api/academic/resolve` — Mark request resolved and provide rating for helper.
-- `POST /api/academic/appeal` — Submit a moderation appeal for a flagged request.
-- `GET /api/academic/faculty-trends` — Retrieve 30-day subject stress trends (Faculty only).
+### Profile (`/api/profile`)
+- `GET /api/profile/me`
+- `GET /api/profile/:anonymous_id`
+- `PUT /api/profile/update`
+- `POST /api/profile/complete-onboarding`
+- `PATCH /api/profile/consent`
+- `DELETE /api/profile/delete`
+- `PUT /api/profile/cancel-deletion`
 
-### 🏆 Trust & Gamification Module (`/api/trust`)
-- `GET /api/trust/leaderboard` — Get monthly leaderboard rankings (optional department filter).
-- `GET /api/trust/badge` — Fetch current user badge tier and score statistics.
-- `GET /api/trust/history` — Get history of trust score changes.
+### Academic and Matching (`/api/academic`, `/api/match`)
+- `POST /api/academic/request`
+- `GET /api/academic/requests`
+- `GET /api/academic/requests/my`
+- `GET /api/academic/requests/:id`
+- `PATCH /api/academic/requests/:id/status`
+- `DELETE /api/academic/requests/:id`
+- `POST /api/academic/helper/register`
+- `GET /api/academic/helpers`
+- `PATCH /api/academic/helper/availability`
+- `POST /api/academic/requests/:id/appeal`
+- `GET /api/academic/trends` (faculty)
+- `GET /api/academic/admin/queue` (admin)
+- `POST /api/academic/admin/:id/approve` (admin)
+- `POST /api/academic/admin/:id/reject` (admin)
+- `GET /api/match/recommendations`
+- `GET /api/match/faculty`
 
-### 💬 Communication & Chat Module (`/api/communication`, `/api/chat`)
-- `POST /api/communication/request-chat` — Send consent-based chat request.
-- `GET /api/communication/chat-requests` — List pending incoming/outgoing chat requests.
-- `PUT /api/communication/chat-requests/:id` — Accept or decline chat request.
-- `GET /api/chat/messages/:targetUserId` — Fetch conversation history with a peer.
-- `POST /api/chat/broadcast` — Post a departmental broadcast (Faculty/Admin).
+### Communication, Chat, Feedback (`/api/communication`, `/api/chat`, `/api/feedback`)
+- `GET /api/communication/conversations`
+- `GET /api/communication/conversations/:id/messages`
+- `POST /api/communication/messages` (currently a rejecting Socket.io-only stub)
+- `POST /api/communication/messages/:id/flag`
+- `POST /api/communication/block`
+- `POST /api/communication/report`
+- `GET /api/communication/broadcasts`
+- `GET /api/chat/pending`
+- `POST /api/chat/request`
+- `POST /api/chat/respond`
+- `POST /api/feedback`
 
-### 🚨 Safety & Emergency SOS Module (`/api/safety`, `/api/communication/sos`)
-- `POST /api/communication/sos` — Trigger a high-priority crisis SOS emergency alert.
-- `GET /api/safety/sos-records` — List active/resolved SOS incidents (Faculty/Admin).
-- `PUT /api/safety/sos-records/:id` — Update SOS status or assign faculty responder.
-- `POST /api/safety/mood` — Log daily mood score and reflection notes.
-- `GET /api/safety/mood-history` — Fetch historical mood records.
+### Trust (`/api/trust`)
+- `GET /api/trust/leaderboard`
+- `GET /api/trust/badge`
+- `GET /api/trust/history`
+- `GET /api/trust/history/:userId` (admin)
+- `POST /api/trust/override` (admin)
+- `DELETE /api/trust/history/:userId` (admin)
 
-### 🛡️ Admin Panel Module (`/api/admin`)
-- `GET /api/admin/analytics` — System metrics and telemetry overview.
-- `GET /api/admin/moderation-queue` — Inspect pending AI-flagged content items.
-- `PUT /api/admin/moderation-queue/:id` — Approve or reject flagged content.
-- `GET /api/admin/appeals` — Review submitted moderation appeals.
-- `PUT /api/admin/appeals/:id` — Approve or reject user appeal.
-- `GET /api/admin/users` — Search and manage platform users.
-- `POST /api/admin/adjust-trust` — Manually modify user trust score with reason.
-- `GET /api/admin/audit-logs` — Inspect administrative activity logs.
+### Admin and Moderation (`/api/admin`)
+- `GET /api/admin/stats`
+- `GET /api/admin/users`
+- `GET /api/admin/sos`
+- `GET /api/admin/violations`
+- `GET /api/admin/audit-logs`
+- `PATCH /api/admin/users/:id/role`
+- `PATCH /api/admin/sos/:id/resolve`
+- `PATCH /api/admin/users/:id/unlock`
+- `GET /api/admin/moderation/queue`
+- `POST /api/admin/moderation/:id/approve`
+- `POST /api/admin/moderation/:id/reject`
+- `POST /api/admin/moderation/:id/escalate`
+- `GET /api/admin/escalations`
+- `GET /api/admin/low-scores`
+- `POST /api/admin/identity-reveal/:userId`
+
+The original README documented several routes that are **missing or renamed**: `/api/profile/onboarding`, `/api/profile/request-deletion`, the academic `/register-helper`, `/initiate-chat`, `/resolve`, `/appeal`, and `/faculty-trends` paths, `/api/communication/request-chat`, `/api/communication/chat-requests`, `/api/chat/messages/:targetUserId`, `/api/chat/broadcast`, all `/api/safety/*` paths, `/api/communication/sos`, and admin `/analytics`, `/moderation-queue`, `/appeals`, and `/adjust-trust`. Socket.io events are not REST routes and are not listed as such here.
 
 ---
 
 ## 🛠️ Tech Stack & Dependencies
 
 ### Frontend (Client)
-- **Framework**: React 18, Vite
-- **Styling & UI**: Tailwind CSS v3, PostCSS, Framer Motion
-- **Icons & Visuals**: Lucide React, Recharts (analytics graphs)
-- **State & Routing**: React Router v6, Context API (`AuthContext`, `ThemeContext`, `SocketContext`)
-- **Networking**: Axios, Socket.io-client
-- **Feedback**: React Hot Toast
+- React 18, React DOM, Vite, React Router 6
+- Tailwind CSS 3, PostCSS, Autoprefixer
+- Framer Motion, Lucide React, Recharts
+- Axios, Socket.io-client, React Hot Toast
+- ESLint with React, hooks, refresh plugins; Prettier
 
 ### Backend (Server)
-- **Runtime & Server**: Node.js 18+, Express.js
-- **Database Layer**: MySQL 8.0, `mysql2` (Connection pooling, raw SQL queries)
-- **Real-Time Engine**: Socket.io
-- **Security & Protection**: Helmet, Express Rate Limit, bcryptjs, JsonWebToken (JWT)
-- **AI Moderation**: Google Gemini API (`@google/genai`), Perspective API, TensorFlow.js (`@tensorflow/tfjs`, `@tensorflow-models/toxicity`)
-- **Scheduler & Mail**: Node-Cron, Nodemailer
-- **Logging & Utilities**: Winston, Winston Daily Rotate File, Morgan, Multer
+- Node.js 18+ and Express 4
+- MySQL 8 via `mysql2` and raw SQL
+- Socket.io, Node-Cron
+- Helmet, CORS, Express Rate Limit, bcryptjs, JsonWebToken
+- Nodemailer, Morgan, Multer
+- Winston and Winston Daily Rotate File
+- TensorFlow.js and `@tensorflow-models/toxicity` for local toxicity checks
+
+The manifests do **not** install `@google/genai`, a Perspective API client, or any other external Gemini/Perspective SDK. The README’s former “Gemini / Perspective API” claim was therefore inaccurate; the current wrappers are local code.
 
 ---
 
 ## 🚀 Quick Start & Local Setup
 
 ### Prerequisites
-- **Node.js** (v18.0.0 or higher)
-- **MySQL Server** (v8.0 or higher)
-- **npm** (v9.0.0 or higher)
+- Node.js 18 or higher
+- MySQL 8 or higher
+- npm 9 or higher
 
-### 1. Repository Setup & Dependency Installation
-Clone the repository and install root, client, and server dependencies using the master setup script:
+### 1. Install dependencies
 ```bash
 npm run install:all
 ```
 
-### 2. Database Configuration
-Start your MySQL server and create the `peerbridge` database:
+### 2. Create the database
 ```sql
 CREATE DATABASE peerbridge CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-### 3. Environment Setup
-Create the required environment variable files:
+Copy the example environment files:
 ```bash
-# Server Environment
-cp server/.env.example server/.env
-
-# Client Environment
-cp client/.env.example client/.env
+copy server\.env.example server\.env
+copy client\.env.example client\.env
 ```
 
-### 4. Database Seeding
-Initialize the master Super Admin user account:
+Fill in the MySQL and JWT values before starting the server. The current startup path runs `server/database_migration.sql` and `server/src/database/apply_migration.js`; because the supplied schema/migrations are not a complete fresh install, use a database backup or reconcile the missing base tables before relying on a new database.
+
+### 3. Seed a super admin
 ```bash
 node server/src/database/seeds/superadmin_seed.js
 ```
-*(Note: Database tables and column migrations auto-execute automatically when the server starts up).*
 
-### 5. Running the Application
-Launch both backend and frontend development servers concurrently:
+### 4. Run the application
 ```bash
 npm run dev
 ```
-- **Frontend App**: `http://localhost:5173`
-- **Backend API**: `http://localhost:5000`
-- **API Health Check**: `http://localhost:5000/api/health`
+
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:5000`
+- Health check: `http://localhost:5000/api/health`
+
+The backend can start without MySQL for health checks, but authenticated features and migrations will not work without a valid database connection.
 
 ---
 
@@ -302,37 +317,38 @@ npm run dev
 
 ### Server (`server/.env`)
 ```env
-PORT=5000
 NODE_ENV=development
+PORT=5000
 CLIENT_URL=http://localhost:5173
-
-# Database Connection
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root
-DB_PASSWORD=your_mysql_password
+DB_PASSWORD=
 DB_NAME=peerbridge
-
-# JWT Authentication Secret
-JWT_SECRET=your_super_secret_jwt_key_here
+JWT_SECRET=change-this-to-a-long-random-secret-in-production
 JWT_EXPIRES_IN=7d
-
-# Email Service (Nodemailer)
+JWT_REFRESH_SECRET=change-this-refresh-secret-too
+JWT_REFRESH_EXPIRES_IN=30d
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
-SMTP_USER=your_email@gmail.com
-SMTP_PASS=your_app_password
-
-# AI Moderation API Keys (Optional)
-GEMINI_API_KEY=your_google_gemini_api_key
-PERSPECTIVE_API_KEY=your_perspective_api_key
+SMTP_USER=
+SMTP_PASS=
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX=100
+MAX_FILE_SIZE=5242880
+LOG_LEVEL=debug
 ```
+
+These are the server variables read by `env.config.js` and related utilities. `GEMINI_API_KEY` and `PERSPECTIVE_API_KEY` are **not used** and are intentionally not listed.
 
 ### Client (`client/.env`)
 ```env
-VITE_API_BASE_URL=http://localhost:5000/api
-VITE_SOCKET_URL=http://localhost:5000
+VITE_API_URL=http://localhost:5000/api
 ```
+
+The client derives the Socket.io origin by removing `/api` from `VITE_API_URL`. The former `VITE_API_BASE_URL` and `VITE_SOCKET_URL` names are not read by the current code.
+
+Do not commit a real `server/.env`; it contains credentials and secrets.
 
 ---
 
@@ -342,11 +358,38 @@ Run from the workspace root:
 
 | Command | Action |
 | :--- | :--- |
-| `npm run dev` | Runs both backend and frontend servers concurrently. |
-| `npm run dev:server` | Runs backend server only with Nodemon auto-reload. |
-| `npm run dev:client` | Runs frontend Vite dev server only. |
-| `npm run install:all` | Installs dependencies across root, `server/`, and `client/`. |
-| `npm run lint` | Runs ESLint across both backend and frontend codebases. |
+| `npm run dev` | Runs server and client development servers concurrently. |
+| `npm run start` | Runs server and client start scripts concurrently. |
+| `npm run dev:server` | Runs the backend with Nodemon. |
+| `npm run dev:client` | Runs the Vite client. |
+| `npm run install:all` | Installs root, server, and client dependencies. |
+| `npm run lint` | Runs server and client ESLint commands. |
+| `npm run build --prefix client` | Builds the client for production. |
+
+---
+
+## 🔧 Recently Resolved Issues (Module 1 - Matching Engine)
+
+- **Offer Expiry & Cascade Mechanism**: Replaced the hourly chat expiry with a high-frequency (1-minute) cron job that automatically expires unaccepted academic chat requests after 15 minutes, marks the helper in the `chat_offer_exclusions` table, and intelligently cascades the offer to the next-best eligible helper using a weighted scoring formula (subject, semester, trust score, recent activity) without looping indefinitely.
+- **Bounded Feedback Loop**: Resolved academic requests now store helper feedback in the `helper_feedback` table. This feedback is applied as a dynamically capped adjustment during future helper match scoring rather than overwriting base trust scores.
+- **Atomic Chat Updates**: Enforced strict transactional atomicity on accepting/declining/expiring chat requests, verifying `expires_at >= NOW()` within the SQL updates to prevent race conditions.
+- **Cleaned Cron Behaviors**: Corrected the hourly data minimization cron job to prevent double-cascades of academic requests and fixed minor linter errors.
+
+---
+
+## 🐞 Known Issues & Next Steps
+
+- Reconcile SOS service/socket/admin column names and enum values with `sos_records`.
+- Fix mood service `notes` versus schema `note`, then mount the mood routes and add a client screen.
+- Create and migrate `moderation_queue`, `notifications`, `trust_score_components`, `anonymous_id_history`, and `chat_messages` consistently.
+- Make migrations idempotent and provide one complete clean-install schema.
+- Replace the rejecting HTTP message stub or document Socket.io as the only supported send path in the client contract.
+- Replace the client leaderboard fallback with a tested live-data state and handle API failures visibly.
+- Add expired-OTP cleanup and remove or migrate cleanup references to undefined legacy tables.
+- Align the client role guards with the backend role enum.
+- Current validation: `npm run build --prefix client` passes, with Browserslist and large-bundle warnings. `npm run lint --prefix server` fails with 19 errors and 98 warnings; `npm run lint --prefix client` fails with 567 errors and 349 warnings, including unused code, missing prop validation, hook dependency warnings, and unescaped JSX entities.
+
+This README is a current-state audit, not a claim that every planned safety or wellbeing feature is production-ready.
 
 ---
 

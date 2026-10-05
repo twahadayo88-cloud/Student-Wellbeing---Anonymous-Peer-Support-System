@@ -2,14 +2,87 @@ const cron = require('node-cron');
 const { query } = require('../config/db.config');
 const logger = require('../utils/logger');
 const env = require('../config/env.config');
+const noticesService = require('../modules/notices/notices.service');
 
 /**
  * PeerBridge — Cleaner Crons
  * ===========================
- * Handles GDPR-style data minimization and account purges.
+ * Handles GDPR-style data minimization, account purges, and offer-window enforcement.
  */
 
 function initCronJobs() {
+  // ─── 0. Academic Offer Expiry (Every 1 minute) ─────────────────────────────
+  // Enforces the 15-minute offer window for academic help chat_requests.
+  // On expiry, records the timed-out helper as excluded and cascades to the
+  // next-best eligible helper (Prompt 1 Follow-up Item 1).
+  cron.schedule('* * * * *', async () => {
+    try {
+      const [expiredOffers] = await query(`
+        SELECT cr.id, cr.receiver_id, cr.academic_request_id
+        FROM chat_requests cr
+        WHERE cr.status = 'pending'
+          AND cr.expires_at < NOW()
+          AND cr.academic_request_id IS NOT NULL
+      `);
+
+      if (!expiredOffers.length) return;
+
+      for (const offer of expiredOffers) {
+        try {
+          const [expireResult] = await query(
+            'UPDATE chat_requests SET status = "expired" WHERE id = ? AND status = "pending"',
+            [offer.id]
+          );
+          if (!expireResult.affectedRows) continue;
+
+          await query(`
+            UPDATE academic_requests
+            SET status = 'open', matched_helper_id = NULL, matched_at = NULL
+            WHERE id = ? AND status = 'matched' AND matched_at IS NULL
+          `, [offer.academic_request_id]);
+
+          try {
+            await query(
+              'INSERT IGNORE INTO chat_offer_exclusions (academic_request_id, helper_user_id) VALUES (?, ?)',
+              [offer.academic_request_id, offer.receiver_id]
+            );
+          } catch (exclErr) {
+            logger.error('offer-expiry cron: exclusion insert failed — skipping cascade', {
+              chatRequestId: offer.id,
+              academicRequestId: offer.academic_request_id,
+              error: exclErr.message
+            });
+            continue;
+          }
+
+          let excludedIds = [];
+          try {
+            const [excRows] = await query(
+              'SELECT helper_user_id FROM chat_offer_exclusions WHERE academic_request_id = ?',
+              [offer.academic_request_id]
+            );
+            excludedIds = excRows.map(r => Number(r.helper_user_id));
+          } catch (readErr) {
+            logger.error('offer-expiry cron: exclusion read failed — skipping cascade', {
+              academicRequestId: offer.academic_request_id,
+              error: readErr.message
+            });
+            continue;
+          }
+
+          const academicService = require('../modules/academic/academic.service');
+          await academicService._offerToNextHelper(offer.academic_request_id, excludedIds);
+          logger.info(`offer-expiry cron: cascaded chatRequestId=${offer.id} academicRequestId=${offer.academic_request_id}`);
+        } catch (offerErr) {
+          logger.error('offer-expiry cron: per-offer processing failed', { id: offer.id, error: offerErr.message });
+        }
+      }
+    } catch (err) {
+      logger.error('offer-expiry cron: top-level failure', { error: err.message });
+    }
+  });
+
+
   // ─── 1. Data Minimization CRON (Daily at 2AM) ──────────────
   // Deletes messages where expires_at < NOW() and is_flagged = FALSE
   cron.schedule('0 2 * * *', async () => {
@@ -79,48 +152,24 @@ function initCronJobs() {
         logger.info(`Auto-expired ${expiredChat.affectedRows} chat requests`);
       }
 
+      const [reopenedAcademic] = await query(`
+        UPDATE academic_requests ar
+        JOIN chat_requests cr ON cr.academic_request_id = ar.id
+        SET ar.status = 'open', ar.matched_helper_id = NULL, ar.matched_at = NULL
+        WHERE cr.status = 'expired' AND ar.status = 'matched' AND ar.matched_at IS NULL
+      `);
+      if (reopenedAcademic.affectedRows > 0) {
+        const { getIO } = require('../config/socket.config');
+        const io = getIO();
+        if (io) io.emit('academic:requests_refresh');
+      }
+
     } catch (err) {
       logger.error('Failed to run account maintenance cron', { error: err.message });
     }
   });
 
-  // ─── 3. Wellness Check-in Task Runner (Hourly) ──────────────
-  cron.schedule('30 * * * *', async () => {
-    logger.info('Checking for pending wellness check-ins');
-    try {
-      const [tasks] = await query(`
-        SELECT id, user_id, payload 
-        FROM scheduled_tasks 
-        WHERE execute_at < NOW() AND is_completed = 0 AND task_type = 'wellness_checkin'
-      `);
-
-      if (tasks.length === 0) return;
-
-      const { storeMessage } = require('../modules/communication/communication.service');
-      const { getIO } = require('../config/socket.config');
-      const io = getIO();
-
-      for (const task of tasks) {
-        // Find a system user or admin to "send" the message
-        // For simplicity, we use sender_id = 0 to imply "System" 
-        // Or we find an admin. Let's assume sender_id = 1 is the system/root admin.
-        
-        const wellnessMessage = "Hello. We are checking in following your recent SOS request. How are you feeling today? Remember, we are here to support you.";
-        
-        // Store as a non-flagged encrypted message
-        await storeMessage(1, task.user_id, wellnessMessage, false, 'chat_only');
-        
-        // Mark task as completed
-        await query('UPDATE scheduled_tasks SET is_completed = 1 WHERE id = ?', [task.id]);
-        
-        logger.audit('WELLNESS_CHECKIN_SENT', { user_id: task.user_id });
-      }
-    } catch (err) {
-      logger.error('Failed to process wellness check-in tasks', { error: err.message });
-    }
-  });
-
-  // ─── 4. Sunday Midnight: Rotate Anonymous IDs (GDPR Compliance) ──────────────
+  // ─── 3. Sunday Midnight: Rotate Anonymous IDs (GDPR Compliance) ──────────────
   cron.schedule('0 0 * * 0', async () => {
     logger.info('Starting weekly anonymous ID rotation');
     try {
@@ -128,12 +177,12 @@ function initCronJobs() {
       const ADJECTIVES = ['Silent', 'Brave', 'Clever', 'Calm', 'Swift', 'Gentle', 'Fierce', 'Noble', 'Wise', 'Bright'];
       const ANIMALS = ['Falcon', 'Wolf', 'Bear', 'Owl', 'Fox', 'Stag', 'Hawk', 'Lion', 'Tiger', 'Eagle'];
 
-      function generateNewId() {
+      const generateNewId = () => {
         const adj = ADJECTIVES[crypto.randomInt(0, ADJECTIVES.length)];
         const animal = ANIMALS[crypto.randomInt(0, ANIMALS.length)];
         const num = crypto.randomInt(1000, 10000);
         return `${adj}${animal}#${num}`;
-      }
+      };
 
       // Fetch all student profiles
       const [profiles] = await query(`
@@ -168,7 +217,7 @@ function initCronJobs() {
     try {
       // A. Posts auto-delete after 90 days (non-flagged)
       // Assuming 'posts' table exists (Academic Support Board / Community Notice Board)
-      const tables = ['academic_requests', 'notice_board_posts', 'library_uploads'];
+      const tables = ['academic_requests', 'notice_posts', 'library_uploads'];
       for (const table of tables) {
         try {
           let queryStr = `
@@ -201,6 +250,23 @@ function initCronJobs() {
   });
 
   // ─── 6. Academic Support Board: Maintenance ──────────────
+  cron.schedule('15 * * * *', async () => {
+    try {
+      await noticesService.expireAndRemind();
+    } catch (err) {
+      logger.error('Notice expiry/reminder job failed', { error: err.message });
+    }
+  });
+
+  cron.schedule('*/15 * * * *', async () => {
+    try {
+      await noticesService.recalculateTrending();
+    } catch (err) {
+      logger.error('Notice trending recalculation failed', { error: err.message });
+    }
+  });
+
+  // ─── 7. Academic Support Board: Maintenance ──────────────
   // Auto-close resolved requests after 48 hours
   cron.schedule('0 * * * *', async () => {
     logger.info('Starting academic auto-close cron');
@@ -229,7 +295,7 @@ function initCronJobs() {
     }
   });
 
-  // ─── 7. Trust Score & Leaderboard Maintenance ──────────────
+  // ─── 8. Trust Score & Leaderboard Maintenance ──────────────
   // Daily Trust Score Recalculation (Midnight)
   cron.schedule('0 0 * * *', async () => {
     logger.info('Starting daily trust score recalculation');

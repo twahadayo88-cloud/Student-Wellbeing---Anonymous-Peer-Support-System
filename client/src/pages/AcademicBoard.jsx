@@ -36,27 +36,30 @@ const AcademicBoard = () => {
 
     if (!socket) return;
 
-    socket.on('academic:new_request', (data) => {
+    const onNewRequest = (data) => {
       setRequests(prev => [data, ...prev]);
       toast(`New ${data.subject} help request!`, { icon: 'ℹ️' });
-    });
+    };
 
-    socket.on('academic:chat_initiated', (data) => {
-      // Refresh requests to update badges/buttons
-      fetchRequests();
-      toast.success(data.message, { duration: 5000 });
-    });
-
-    socket.on('academic:request_updated', (data) => {
+    const onRequestUpdated = (data) => {
       setRequests(prev => prev.map(req => 
         req.id === data.request_id ? { ...req, status: data.status } : req
       ));
-    });
+    };
+
+    const onRequestsRefresh = () => fetchRequests();
+    const onAcademicError = (data) => toast.error(data.message || 'Unable to send help offer');
+
+    socket.on('academic:new_request', onNewRequest);
+    socket.on('academic:request_updated', onRequestUpdated);
+    socket.on('academic:requests_refresh', onRequestsRefresh);
+    socket.on('academic:error', onAcademicError);
 
     return () => {
-      socket.off('academic:new_request');
-      socket.off('academic:chat_initiated');
-      socket.off('academic:request_updated');
+      socket.off('academic:new_request', onNewRequest);
+      socket.off('academic:request_updated', onRequestUpdated);
+      socket.off('academic:requests_refresh', onRequestsRefresh);
+      socket.off('academic:error', onAcademicError);
     };
   }, [user, socket]);
 
@@ -111,7 +114,7 @@ const AcademicBoard = () => {
   const handleOfferHelp = (requestId) => {
     if (socket) {
       socket.emit('academic:offer_help', { request_id: requestId });
-      toast.success('Interest sent! Opening chat...');
+      toast.success('Offer sent. Chat opens after the helper accepts.');
     }
   };
 

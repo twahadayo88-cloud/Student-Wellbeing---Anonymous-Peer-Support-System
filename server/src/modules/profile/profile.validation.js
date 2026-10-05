@@ -30,7 +30,7 @@ const LIMITS = Object.freeze({
  */
 function validateProfileUpdate(body, role) {
   const errors = [];
-  const isFaculty = role === 'faculty' || role === 'admin';
+  const isFaculty = ['faculty', 'admin', 'super_admin'].includes(role);
 
   // ─── Protected Field Guards ─────────────────────────
   if (body.anonymous_id !== undefined) {

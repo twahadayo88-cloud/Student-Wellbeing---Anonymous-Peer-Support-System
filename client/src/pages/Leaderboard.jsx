@@ -1,60 +1,47 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import {
   Trophy, Medal, Filter, Search, Hash,
-  MessageSquare, Users, GraduationCap, LayoutDashboard
+  MessageSquare, GraduationCap, LayoutDashboard
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Navbar from '../components/layout/Navbar';
 import BadgeDisplay from '../components/trust/BadgeDisplay';
 
 const Leaderboard = () => {
-  const navigate = useNavigate();
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [selectedDept, setSelectedDept] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
 
-  const departments = [
-    'All',
-    'Computer Science',
-    'Electrical Engineering',
-    'Mechanical Engineering',
-    'BBA',
-    'Psychology'
-  ];
+  const departments = ['All', ...new Set(leaderboard.map(item => item.department).filter(Boolean))];
 
   useEffect(() => {
+    let cancelled = false;
+    const fetchLeaderboard = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const response = await api.get('/trust/leaderboard');
+        if (!cancelled) setLeaderboard(response.data.data || []);
+      } catch (error) {
+        console.error('Failed to fetch leaderboard:', error);
+        if (!cancelled) {
+          setLeaderboard([]);
+          setError(error.response?.data?.message || 'Leaderboard data is unavailable.');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
     fetchLeaderboard();
-  }, [selectedDept]);
-
-  const fetchLeaderboard = async () => {
-    try {
-      setLoading(true);
-
-      const mockData = [
-        { id: 1, anonymous_id: 'BraveBear', department: 'Computer Science', trust_score: 95, help_count: 42, avg_rating: 4.9, rank_position: 1 },
-        { id: 2, anonymous_id: 'CleverBear', department: 'Electrical Engineering', trust_score: 85, help_count: 38, avg_rating: 4.7, rank_position: 2 },
-        { id: 3, anonymous_id: 'SilverEagle', department: 'Mechanical Engineering', trust_score: 75, help_count: 30, avg_rating: 4.5, rank_position: 3 },
-        { id: 4, anonymous_id: 'BraveTiger', department: 'Computer Science', trust_score: 65, help_count: 25, avg_rating: 4.2, rank_position: 4 },
-        { id: 5, anonymous_id: 'BraveLion', department: 'BBA', trust_score: 55, help_count: 20, avg_rating: 4.0, rank_position: 5 },
-      ];
-
-      const filteredData = selectedDept === 'All'
-        ? mockData
-        : mockData.filter(d => d.department === selectedDept);
-
-      setLeaderboard(filteredData);
-    } catch (error) {
-      console.error('Failed to fetch leaderboard:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    return () => { cancelled = true; };
+  }, []);
 
   const filteredLeaderboard = leaderboard.filter(item =>
-    item.anonymous_id.toLowerCase().includes(searchTerm.toLowerCase())
+    (selectedDept === 'All' || item.department === selectedDept) &&
+    (item.anonymous_id || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getRankIcon = (rank) => {
@@ -73,10 +60,10 @@ const Leaderboard = () => {
 
   // Left icon sidebar navigation items
   const sidebarItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', action: () => navigate('/dashboard') },
-    { icon: MessageSquare, label: 'Messages', action: () => navigate('/chat') },
-    { icon: Trophy, label: 'Leaderboard', action: null, active: true },
-    { icon: GraduationCap, label: 'Academic Board', action: () => navigate('/chat?tab=academic') },
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
+    { icon: MessageSquare, label: 'Messages', path: '/chat' },
+    { icon: Trophy, label: 'Leaderboard', path: '/leaderboard', active: true },
+    { icon: GraduationCap, label: 'Academic Board', path: '/chat?tab=academic' },
   ];
 
   return (
@@ -89,7 +76,7 @@ const Leaderboard = () => {
           {sidebarItems.map((item) => (
             <button
               key={item.label}
-              onClick={item.action || undefined}
+              onClick={() => { if (item.path) window.location.assign(item.path); }}
               title={item.label}
               className={`p-3 rounded-xl transition-all ${item.active
                 ? 'bg-primary-500/20 text-primary-500 shadow-inner cursor-default'
@@ -172,7 +159,7 @@ const Leaderboard = () => {
                       <h3 className="text-base font-bold text-surface-900 dark:text-white mb-0.5 truncate">{item.anonymous_id}</h3>
                       <p className="text-surface-500 text-xs mb-4">{item.department}</p>
                       <div className="flex flex-col items-center gap-2">
-                        <BadgeDisplay tier={getTierFromScore(item.trust_score)} size="md" />
+                        <BadgeDisplay tier={item.badge_tier || 'bronze'} size="md" />
                         <div className="grid grid-cols-2 gap-3 w-full mt-3 pt-3 border-t border-surface-200/30 dark:border-surface-700/30">
                           <div>
                             <p className="text-[10px] text-surface-500 uppercase tracking-wider">Helped</p>
@@ -222,8 +209,8 @@ const Leaderboard = () => {
                 ) : filteredLeaderboard.length === 0 ? (
                   <div className="py-20 text-center">
                     <Trophy className="w-12 h-12 text-surface-300 dark:text-surface-700 mx-auto mb-4" />
-                    <p className="text-surface-500 text-sm font-medium">No rankings available yet.</p>
-                    <p className="text-surface-400 text-xs mt-1">Be the first to help a peer and earn your spot!</p>
+                    <p className="text-surface-500 text-sm font-medium">{error || 'No rankings available yet.'}</p>
+                    {!error && <p className="text-surface-400 text-xs mt-1">Be the first to help a peer and earn your spot!</p>}
                   </div>
                 ) : (
                   filteredLeaderboard.map((item, index) => (
@@ -250,7 +237,7 @@ const Leaderboard = () => {
                         {item.department}
                       </div>
                       <div className="col-span-2 flex justify-center">
-                        <BadgeDisplay tier={getTierFromScore(item.trust_score)} showLabel={false} size="sm" />
+                        <BadgeDisplay tier={item.badge_tier || 'bronze'} showLabel={false} size="sm" />
                       </div>
                       <div className="col-span-1 text-center font-bold text-surface-900 dark:text-white text-sm">
                         {item.help_count}
@@ -276,13 +263,6 @@ const Leaderboard = () => {
       </main>
     </>
   );
-};
-
-const getTierFromScore = (score) => {
-  if (score >= 80) return 'platinum';
-  if (score >= 60) return 'gold';
-  if (score >= 40) return 'silver';
-  return 'bronze';
 };
 
 export default Leaderboard;

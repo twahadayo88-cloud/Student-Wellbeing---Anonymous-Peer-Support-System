@@ -9,23 +9,14 @@ const TRUST_SCORE_EVENTS = {
   RECEIVED_4_STAR: { amount: +3, reason: 'Received 4-star rating' },
   QUICK_RESPONSE: { amount: +3, reason: 'Responded within 5 minutes' },
   HELPED_CRITICAL: { amount: +15, reason: 'Helped with critical urgency request' },
-  SOS_SUPPORT_GIVEN: { amount: +8, reason: 'Provided SOS support' },
   CONSISTENT_HELPER: { amount: +5, reason: 'Helped 5+ people this week' },
 
   // Decreases
   WARNING_RECEIVED: { amount: -2, reason: 'Safety warning received' },
   CONTENT_REMOVED: { amount: -4, reason: 'Content removed by moderator' },
   SUSPENSION: { amount: -6, reason: 'Account suspended for violation' },
-  SOS_FALSE_ALARM: { amount: -4, reason: 'SOS false alarm triggered' },
   UNRESPONSIVE: { amount: -2, reason: 'Did not respond to matched request' },
   NEGATIVE_FEEDBACK: { amount: -3, reason: 'Received negative feedback' }
-};
-
-const BADGE_TIERS = {
-  BRONZE: { min: 0, max: 39, label: 'bronze', description: 'New member' },
-  SILVER: { min: 40, max: 59, label: 'silver', description: 'Trusted peer' },
-  GOLD: { min: 60, max: 79, label: 'gold', description: 'Reliable helper' },
-  PLATINUM: { min: 80, max: 100, label: 'platinum', description: 'Elite contributor' }
 };
 
 /**
@@ -38,52 +29,23 @@ class TrustService {
   async handleTrustEvent(userId, eventType) {
     const event = TRUST_SCORE_EVENTS[eventType];
     if (!event) return;
+    const componentOnlyEvents = ['HELPED_SUCCESSFULLY', 'RECEIVED_5_STAR', 'RECEIVED_4_STAR'];
+    if (componentOnlyEvents.includes(eventType)) return;
 
-    const [profile] = await query('SELECT trust_score FROM profiles WHERE user_id = ?', [userId]);
-    if (!profile.length) return;
-
-    const oldScore = profile[0].trust_score;
-    const newScore = Math.max(0, Math.min(100, oldScore + event.amount));
-
-    if (oldScore === newScore) return;
-
-    // 1. Update Profile
-    await query('UPDATE profiles SET trust_score = ? WHERE user_id = ?', [newScore, userId]);
-
-    // 2. Log History
-    await query(`
-      INSERT INTO trust_score_history (user_id, old_score, new_score, change_amount, change_reason, change_type)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `, [userId, oldScore, newScore, event.amount, event.reason, event.amount > 0 ? 'increase' : 'decrease']);
-
-    // 3. Update Badge Tier
-    await this.updateBadgeTier(userId, newScore);
-
-    // 4. Notify via Socket
-    const io = getIO();
-    if (io) {
-      const [userProfile] = await query('SELECT anonymous_id FROM profiles WHERE user_id = ?', [userId]);
-      const anonId = userProfile[0]?.anonymous_id;
-      if (anonId) {
-        io.to(anonId).emit('trust:score_changed', {
-          change_amount: event.amount,
-          change_reason: event.reason,
-          new_score: newScore,
-          trust_score: newScore // Add this for compatibility with profile UI
-        });
-        
-        // Also emit the specific event Profile.jsx listens to
-        io.to(anonId).emit('trust_score:updated', { trust_score: newScore });
-      }
-
-      // Notify Admins to update user tables
-      io.to('admin_room').emit('trust:score_updated', {
-        user_id: userId,
-        new_score: newScore
-      });
+    if (['WARNING_RECEIVED', 'CONTENT_REMOVED', 'SUSPENSION'].includes(eventType)) {
+      await query(`
+        INSERT INTO trust_score_components (user_id, violation_count)
+        VALUES (?, 1)
+        ON DUPLICATE KEY UPDATE violation_count = violation_count + 1
+      `, [userId]);
+    } else {
+      await query(`
+        INSERT INTO trust_score_components (user_id, event_adjustment)
+        VALUES (?, ?)
+        ON DUPLICATE KEY UPDATE event_adjustment = GREATEST(-20, LEAST(20, event_adjustment + VALUES(event_adjustment)))
+      `, [userId, event.amount]);
     }
-
-    logger.info(`Trust score updated for user ${userId}: ${oldScore} -> ${newScore} (${event.reason})`);
+    await this.recalculateTrustScore(userId, event.reason);
   }
 
   async updateBadgeTier(userId, newScore) {
@@ -95,7 +57,7 @@ class TrustService {
     const [current] = await query('SELECT current_tier FROM badge_tiers WHERE user_id = ?', [userId]);
     const oldTier = current.length ? current[0].current_tier : 'bronze';
 
-    if (oldTier !== newTier) {
+    if (!current.length || oldTier !== newTier) {
       await query(`
         INSERT INTO badge_tiers (user_id, current_tier, previous_tier, tier_achieved_at)
         VALUES (?, ?, ?, NOW())
@@ -123,40 +85,84 @@ class TrustService {
   }
 
   async recalculateTrustScore(userId) {
-    const [components] = await query('SELECT * FROM trust_score_components WHERE user_id = ?', [userId]);
-    if (!components.length) return;
+    await query('INSERT IGNORE INTO trust_score_components (user_id) VALUES (?)', [userId]);
+    const [[components]] = await query('SELECT * FROM trust_score_components WHERE user_id = ?', [userId]);
+    const [[activity]] = await query(`
+      SELECT COUNT(*) AS resolution_count,
+             AVG(TIMESTAMPDIFF(MINUTE, created_at, matched_at)) AS avg_response_time_minutes
+      FROM academic_requests
+      WHERE matched_helper_id = ? AND status = 'resolved' AND matched_at IS NOT NULL
+    `, [userId]);
+    const [[rating]] = await query(
+      'SELECT AVG(rating) AS avg_rating, COUNT(*) AS rating_count FROM feedback WHERE to_user = ?',
+      [userId]
+    );
+    const [[violations]] = await query(
+      'SELECT COUNT(*) AS count FROM violation_history WHERE user_id = ?',
+      [userId]
+    );
+    const [[profile]] = await query('SELECT trust_score, anonymous_id FROM profiles WHERE user_id = ?', [userId]);
+    if (!profile) return;
 
-    const {
-      helpfulness_rating,
-      resolution_count,
-      violation_count,
-      avg_response_time_minutes
-    } = components[0];
+    const componentRatingCount = Number(components.total_ratings_received || 0);
+    const feedbackRatingCount = Number(rating.rating_count || 0);
+    const ratingCount = componentRatingCount + feedbackRatingCount;
+    const helpfulnessRating = ratingCount > 0
+      ? ((Number(components.helpfulness_rating || 0) * componentRatingCount) +
+         (Number(rating.avg_rating || 0) * feedbackRatingCount)) / ratingCount
+      : 3;
+    const resolutionCount = Math.max(Number(components.resolution_count || 0), Number(activity.resolution_count || 0));
+    const violationCount = Math.max(Number(components.violation_count || 0), Number(violations.count || 0));
+    const avgResponse = activity.avg_response_time_minutes === null || activity.avg_response_time_minutes === undefined
+      ? null
+      : Number(activity.avg_response_time_minutes);
 
-    // Formula Implementation
-    const helpfulnessScore = (parseFloat(helpfulness_rating) / 5) * 40;
-    const resolutionScore = Math.min(resolution_count * 2, 30);
-    const violationPenalty = Math.min(violation_count * 10, 20);
-    
+    // 50-point starting score; remaining weights: helpfulness 20, resolutions 20,
+    // response time 10, and violations up to a 30-point penalty.
+    const helpfulnessDelta = Math.round((helpfulnessRating - 3) * 10);
+    const resolutionScore = Math.min(resolutionCount * 2, 20);
+    const violationPenalty = Math.min(violationCount * 10, 30);
     let responseScore = 0;
-    if (avg_response_time_minutes <= 5) responseScore = 10;
-    else if (avg_response_time_minutes <= 15) responseScore = 8;
-    else if (avg_response_time_minutes <= 30) responseScore = 6;
-    else if (avg_response_time_minutes <= 60) responseScore = 4;
-    else if (avg_response_time_minutes <= 120) responseScore = 2;
+    if (avgResponse !== null && avgResponse <= 5) responseScore = 10;
+    else if (avgResponse !== null && avgResponse <= 15) responseScore = 8;
+    else if (avgResponse !== null && avgResponse <= 30) responseScore = 6;
+    else if (avgResponse !== null && avgResponse <= 60) responseScore = 4;
+    else if (avgResponse !== null && avgResponse <= 120) responseScore = 2;
 
-    let finalScore = Math.round(helpfulnessScore + resolutionScore + responseScore - violationPenalty);
-    finalScore = Math.max(0, Math.min(100, finalScore));
+    const finalScore = Math.max(0, Math.min(100, Math.round(
+      50 + helpfulnessDelta + resolutionScore + responseScore - violationPenalty + Number(components.event_adjustment || 0)
+    )));
+    const oldScore = Number(profile.trust_score ?? 50);
 
-    const [profile] = await query('SELECT trust_score FROM profiles WHERE user_id = ?', [userId]);
-    const oldScore = profile[0]?.trust_score || 0;
+    await query(`
+      UPDATE trust_score_components
+      SET resolution_count = ?, avg_response_time_minutes = ?, last_calculated = NOW()
+      WHERE user_id = ?
+    `, [resolutionCount, avgResponse, userId]);
 
     if (oldScore !== finalScore) {
       await query('UPDATE profiles SET trust_score = ? WHERE user_id = ?', [finalScore, userId]);
+      await query(`
+        INSERT INTO trust_score_history (user_id, old_score, new_score, change_amount, change_reason, change_type)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `, [userId, oldScore, finalScore, finalScore - oldScore, 'Weighted 24-hour recalculation', finalScore > oldScore ? 'increase' : 'decrease']);
       await this.updateBadgeTier(userId, finalScore);
-      
-      await query('UPDATE trust_score_components SET last_calculated = NOW() WHERE user_id = ?', [userId]);
+      const io = getIO();
+      if (io && profile.anonymous_id) {
+        io.to(profile.anonymous_id).emit('trust:score_changed', { badge_tier: this.getBadgeTier(finalScore) });
+        io.to('admin_room').emit('trust:score_updated', { user_id: userId, badge_tier: this.getBadgeTier(finalScore) });
+      }
+      logger.info(`Trust score recalculated for user ${userId}: ${oldScore} -> ${finalScore}`);
+    } else {
+      await this.updateBadgeTier(userId, finalScore);
     }
+  }
+
+  getBadgeTier(score) {
+    if (score >= 80) return 'platinum';
+    if (score >= 60) return 'gold';
+    if (score >= 40) return 'silver';
+    return 'bronze';
   }
 
   async updateMonthlyLeaderboard() {
@@ -166,7 +172,7 @@ class TrustService {
       SELECT 
         u.id as user_id,
         p.anonymous_id,
-        p.department,
+        COALESCE(p.department, 'Unassigned') AS department,
         p.trust_score,
         COUNT(ar.id) as help_count,
         COALESCE(AVG(f.rating), 0) as avg_rating
@@ -231,9 +237,8 @@ class TrustService {
     if (rows.length === 0) {
       let liveSql = `
         SELECT 
-          u.id,
           p.anonymous_id,
-          p.department,
+          COALESCE(p.department, 'Unassigned') AS department,
           p.trust_score,
           COUNT(ar.id) as help_count,
           COALESCE(AVG(f.rating), 0) as avg_rating,
@@ -256,20 +261,32 @@ class TrustService {
         LIMIT 100`;
       const [liveRows] = await query(liveSql, liveParams);
       // Assign rank_position manually per dept
-      let deptRanks = {};
+      const deptRanks = {};
       return liveRows.map(row => {
         const dept = row.department;
         deptRanks[dept] = (deptRanks[dept] || 0) + 1;
-        return { ...row, rank_position: deptRanks[dept] };
+        const { trust_score: score, ...publicRow } = row;
+        delete publicRow.user_id;
+        return { ...publicRow, badge_tier: this.getBadgeTier(Number(score ?? 50)), rank_position: deptRanks[dept] };
       });
     }
 
-    return rows;
+    return rows.map(row => {
+      const { trust_score: score, ...publicRow } = row;
+      delete publicRow.user_id;
+      return { ...publicRow, badge_tier: this.getBadgeTier(Number(score ?? 50)) };
+    });
   }
 
   async getUserBadge(userId) {
     const [rows] = await query(`
-      SELECT bt.*, p.trust_score 
+      SELECT bt.current_tier, bt.tier_achieved_at,
+        CASE
+          WHEN p.trust_score >= 80 THEN 'platinum'
+          WHEN p.trust_score >= 60 THEN 'gold'
+          WHEN p.trust_score >= 40 THEN 'silver'
+          ELSE 'bronze'
+        END AS calculated_tier
       FROM profiles p
       LEFT JOIN badge_tiers bt ON p.user_id = bt.user_id
       WHERE p.user_id = ?
@@ -278,8 +295,7 @@ class TrustService {
     if (!rows.length) return { current_tier: 'bronze' };
     
     return {
-      current_tier: rows[0].current_tier || 'bronze',
-      trust_score: rows[0].trust_score,
+      current_tier: rows[0].current_tier || rows[0].calculated_tier || 'bronze',
       tier_achieved_at: rows[0].tier_achieved_at
     };
   }

@@ -9,6 +9,10 @@ const { query } = require('../../config/db.config');
 
 const createRequest = asyncHandler(async (req, res) => {
   const userId = req.user.user_id;
+  const { subject, urgency, title, description } = req.body;
+  if (!subject || !title || !description || !['low', 'medium', 'high', 'critical'].includes(urgency)) {
+    throw new AppError('Subject, title, description, and a valid urgency are required', 400);
+  }
   const result = await academicService.createHelpRequest(userId, req.body);
   
   res.status(201).json({
@@ -53,9 +57,9 @@ const updateStatus = asyncHandler(async (req, res) => {
   const { status, rating } = req.body;
   
   if (status === 'resolved') {
-    await academicService.resolveRequest(id, rating);
+    await academicService.resolveRequest(id, rating, req.user.user_id);
   } else {
-    await query('UPDATE academic_requests SET status = ? WHERE id = ?', [status, id]);
+    await academicService.updateRequestStatus(id, req.user.user_id, status);
   }
   
   res.status(200).json({
@@ -66,7 +70,7 @@ const updateStatus = asyncHandler(async (req, res) => {
 
 const closeRequest = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  await query('UPDATE academic_requests SET status = "closed", closed_at = NOW() WHERE id = ?', [id]);
+  await academicService.closeRequest(id, req.user.user_id);
   
   res.status(200).json({
     success: true,
@@ -77,6 +81,9 @@ const closeRequest = asyncHandler(async (req, res) => {
 const registerHelper = asyncHandler(async (req, res) => {
   const userId = req.user.user_id;
   const { subjects } = req.body;
+  if (!Array.isArray(subjects) || subjects.length === 0 || subjects.length > 10) {
+    throw new AppError('Subjects must be a non-empty array of at most 10 items', 400);
+  }
   await academicService.registerAsHelper(userId, subjects);
   
   res.status(200).json({
@@ -88,7 +95,9 @@ const registerHelper = asyncHandler(async (req, res) => {
 const getHelpers = asyncHandler(async (req, res) => {
   const { subject } = req.query;
   const userId = req.user.user_id;
-  const helpers = await academicService.getAvailableHelpers(subject, userId);
+  const helpers = req.query.my === 'true'
+    ? await academicService.getHelperListing(userId)
+    : await academicService.getAvailableHelpers(subject, userId);
   
   res.status(200).json({
     success: true,
@@ -99,6 +108,9 @@ const getHelpers = asyncHandler(async (req, res) => {
 const updateAvailability = asyncHandler(async (req, res) => {
   const userId = req.user.user_id;
   const { availability } = req.body;
+  if (!['available', 'busy', 'offline'].includes(availability)) {
+    throw new AppError('Invalid availability', 400);
+  }
   await query('UPDATE helper_listings SET availability = ? WHERE user_id = ?', [availability, userId]);
   
   res.status(200).json({
@@ -111,6 +123,7 @@ const submitAppeal = asyncHandler(async (req, res) => {
   const userId = req.user.user_id;
   const { id } = req.params;
   const { reason } = req.body;
+  if (!reason || reason.trim().length < 5) throw new AppError('Appeal reason is required', 400);
   await academicService.submitAppeal(id, userId, reason);
   
   res.status(200).json({

@@ -42,7 +42,7 @@ const rejectContent = asyncHandler(async (req, res) => {
   const [rows] = await query('SELECT * FROM moderation_queue WHERE id = ?', [id]);
   if (!rows.length) throw new AppError('Item not found', 404);
 
-  const { user_id, content_type, content_id } = rows[0];
+  const { user_id, content_id } = rows[0];
 
   await query(
     'UPDATE moderation_queue SET status = \'rejected\', reviewed_by = ?, reviewed_at = NOW() WHERE id = ?',
@@ -82,6 +82,10 @@ const escalateContent = asyncHandler(async (req, res) => {
 const revealIdentity = asyncHandler(async (req, res) => {
   const { userId } = req.params;
   const adminId = req.user.user_id;
+  const justification = typeof req.body.justification === 'string' ? req.body.justification.trim() : '';
+  if (justification.length < 20) {
+    throw new AppError('Identity reveal justification must be at least 20 characters.', 400);
+  }
 
   // Check if there is already a pending escalation for identity reveal that needs secondary approval
   const [existing] = await query(
@@ -106,7 +110,7 @@ const revealIdentity = asyncHandler(async (req, res) => {
 
     // Notify student anonymously
     await safetyService.logAuditAction(userId, 'IDENTITY_REVEALED', 'user', userId, 'HIGH', { 
-      reason: 'Dual admin approval for identity reveal',
+      reason: existing[0].reason,
       admin_1: existing[0].actioned_by,
       admin_2: adminId
     });
@@ -119,8 +123,8 @@ const revealIdentity = asyncHandler(async (req, res) => {
   } else {
     // This is the first approval
     await query(
-      'INSERT INTO escalation_records (user_id, level, reason, actioned_by) VALUES (?, \'identity_reveal\', \'Pending dual approval for identity reveal\', ?)',
-      [userId, adminId]
+      'INSERT INTO escalation_records (user_id, level, reason, actioned_by) VALUES (?, \'identity_reveal\', ?, ?)',
+      [userId, justification, adminId]
     );
 
     res.status(200).json({ success: true, message: 'Identity reveal requested. Awaiting secondary admin approval.' });

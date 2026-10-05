@@ -11,51 +11,16 @@ import toast from 'react-hot-toast';
 import ChatBox from '../components/chat/ChatBox';
 import OnboardingModal from '../components/modals/OnboardingModal';
 import ChatRequestModal from '../components/modals/ChatRequestModal';
-import SOSButton from '../components/chat/SOSButton';
 import BadgeDisplay from '../components/trust/BadgeDisplay';
 
 export default function Dashboard() {
   const { user } = useAuth();
   const { socket, isConnected, connError } = useSocket();
 
-  // ─── Faculty Global SOS Alert Listener ───
-  useEffect(() => {
-    if (!socket || !isConnected) return;
-    
-    // Only administrators and counselors should receive the broadcast alert
-    if (user?.role === 'faculty' || user?.role === 'counselor_admin' || user?.role === 'admin' || user?.role === 'super_admin') {
-      const onSosAlert = (data) => {
-        toast.error(
-          (t) => (
-            <div className="flex flex-col gap-1">
-              <span className="font-bold">🆘 SOS EMERGENCY ALERT</span>
-              <span className="text-xs uppercase tracking-wider opacity-90">{data.category}</span>
-              <span className="text-[10px] mt-1 italic">Student {data.student_anonymous_id} needs immediate help!</span>
-              <button 
-                onClick={() => {
-                  toast.dismiss(t.id);
-                  // Optionally navigate to a dedicated emergency room or handle it
-                }}
-                className="mt-2 btn-primary py-1 px-3 text-[10px] bg-red-700 border-none shadow-none"
-              >
-                Respond Now
-              </button>
-            </div>
-          ),
-          { duration: 15000, position: 'top-center', style: { border: '2px solid #b91c1c', padding: '16px', color: '#7f1d1d', background: '#fef2f2' } }
-        );
-      };
-
-      socket.on('sos_alert', onSosAlert);
-      return () => socket.off('sos_alert', onSosAlert);
-    }
-  }, [socket, isConnected, user?.role]);
-
   const [conversations, setConversations] = useState([]);
   const [activePeer, setActivePeer] = useState(null);
   const [myProfile, setMyProfile] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
-  const [facultyFallback, setFacultyFallback] = useState([]);
   const [isLoadingMatches, setIsLoadingMatches] = useState(true);
   const [pendingRequests, setPendingRequests] = useState({ incoming: [], sent: [] });
   const [selectedPeerForRequest, setSelectedPeerForRequest] = useState(null);
@@ -83,7 +48,6 @@ export default function Dashboard() {
       setConversations(data.active_chats || []);
       setPendingRequests(data.pending_requests || { incoming: [], sent: [] });
       setRecommendations(data.recommended_peers || []);
-      setFacultyFallback(data.faculty_fallback || []);
       setIsLoadingMatches(false);
 
       if (data.onboarding_required !== undefined) {
@@ -121,21 +85,6 @@ export default function Dashboard() {
       }));
     };
 
-    // Real-time trust score update
-    const onTrustScoreUpdated = (data) => {
-      setMyProfile(prev => prev ? { ...prev, badge_tier: data.new_tier || prev.badge_tier } : prev);
-      if (data.points_earned) {
-        toast.success(`You earned reputation points!`);
-      }
-    };
-
-    // trust:score_changed is the primary event from trust.service.js
-    const onTrustScoreChanged = (data) => {
-      if (data.change_amount > 0) {
-        toast.success(`🌟 +${data.change_amount} Trust Score! ${data.change_reason}`, { duration: 4000 });
-      }
-    };
-
     // Badge tier upgrade notification
     const onBadgeUpgraded = (data) => {
       toast.success(
@@ -159,8 +108,6 @@ export default function Dashboard() {
     socket.on('chat_request:new', onChatRequestNew);
     socket.on('chat_request:accepted', onChatRequestAccepted);
     socket.on('chat_request:declined', onChatRequestDeclined);
-    socket.on('trust_score:updated', onTrustScoreUpdated);
-    socket.on('trust:score_changed', onTrustScoreChanged);
     socket.on('badge:tier_upgraded', onBadgeUpgraded);
     socket.on('match:new', onMatchNew);
     socket.on('conversation:refresh', onConversationRefresh);
@@ -171,13 +118,11 @@ export default function Dashboard() {
       socket.off('chat_request:new', onChatRequestNew);
       socket.off('chat_request:accepted', onChatRequestAccepted);
       socket.off('chat_request:declined', onChatRequestDeclined);
-      socket.off('trust_score:updated', onTrustScoreUpdated);
-      socket.off('trust:score_changed', onTrustScoreChanged);
       socket.off('badge:tier_upgraded', onBadgeUpgraded);
       socket.off('match:new', onMatchNew);
       socket.off('conversation:refresh', onConversationRefresh);
     };
-  }, [socket, isConnected]);
+  }, [socket, isConnected, user?.role]);
 
   // ─── Respond to chat request (HTTP, since it has auth side-effects) ───
   const handleResponseToRequest = async (requestId, status) => {
@@ -300,20 +245,7 @@ export default function Dashboard() {
                 <div className="p-8 bg-surface-50 dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-800 text-center">
                   <Signal className="w-12 h-12 mb-4 block mx-auto text-surface-400" />
                   <h3 className="font-bold text-surface-900 dark:text-white mb-2">No direct peer matches found</h3>
-                  <p className="text-surface-500 text-sm mb-6 max-w-sm mx-auto">Don&apos;t worry! You can still reach out to our dedicated faculty members for academic guidance.</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
-                     {facultyFallback.map(f => (
-                       <div key={f.anonymous_id} className="bg-white dark:bg-surface-950 p-4 rounded-xl border border-surface-200 dark:border-surface-800">
-                         <div className="flex justify-between items-start mb-1">
-                           <h4 className="font-bold text-sm text-surface-900 dark:text-white">{f.name}</h4>
-                           <span className="font-mono font-bold text-xs text-primary-600 dark:text-primary-400">{f.anonymous_id}</span>
-                         </div>
-                         <p className="text-[10px] text-primary-500 font-bold mb-2 uppercase">{f.designation}</p>
-                         <p className="text-[10px] text-surface-500 leading-tight mb-2 line-clamp-2">{Array.isArray(f.subjects) ? f.subjects.join(', ') : ''}</p>
-                         <button onClick={() => setSelectedPeerForRequest(f)} className="btn-secondary w-full py-1 text-[10px]">Send Help Request</button>
-                       </div>
-                     ))}
-                  </div>
+                  <p className="text-surface-500 text-sm max-w-sm mx-auto">No student matches are available right now. Check back later or post an academic help request.</p>
                 </div>
               )}
             </section>
@@ -360,7 +292,10 @@ export default function Dashboard() {
                   conversations.map((conv, idx) => (
                     <div
                       key={idx}
-                      onClick={() => setActivePeer({ anonymous_id: conv.peer_anonymous_id })}
+                      onClick={() => setActivePeer({
+                        anonymous_id: conv.peer_anonymous_id,
+                        conversation_id: conv.conversation_id
+                      })}
                       className="p-3 rounded-xl border border-surface-200 dark:border-surface-700 hover:bg-surface-100 dark:hover:bg-surface-800 cursor-pointer transition-colors flex items-center space-x-3"
                     >
                       <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-fuchsia-400 shadow-sm flex items-center justify-center text-white font-bold text-xs uppercase">
@@ -388,7 +323,6 @@ export default function Dashboard() {
         anonymousId={myProfile?.anonymous_id}
       />
 
-      {user?.role === 'student' && <SOSButton />}
 
       {selectedPeerForRequest && (
         <ChatRequestModal

@@ -31,18 +31,9 @@ async function submitFeedback(fromUserId, toAnonymousId, rating, requestId) {
     );
 
     // 5. Recalculate trust_score for toUserId
-    const [avgRows] = await query(
-        'SELECT AVG(rating) as avg_rating FROM feedback WHERE to_user = ?',
-        [toUserId]
-    );
-
-    const avgRating = avgRows[0].avg_rating || 0;
-    const newTrustScore = Math.round(avgRating * 20);
-
-    await query(
-        'UPDATE profiles SET trust_score = ? WHERE user_id = ?',
-        [newTrustScore, toUserId]
-    );
+        // TrustService combines this feedback row with academic resolution ratings.
+        const trustService = require('../trust/trust.service');
+        await trustService.recalculateTrustScore(toUserId);
 }
 
 module.exports = { submitFeedback };

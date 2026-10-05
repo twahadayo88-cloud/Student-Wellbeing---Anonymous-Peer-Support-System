@@ -143,7 +143,7 @@ async function getAnonymousIdByUserId(userId) {
  */
 async function updateProfile(userId, updates, role) {
   const { name, skills, department, designation, semester, subjects, office_hours, bio } = updates;
-  const isFaculty = role === 'faculty' || role === 'admin';
+  const isFaculty = ['faculty', 'admin', 'super_admin'].includes(role);
 
   // Build dynamic SET clause — only include provided fields
   const setClauses = [];
@@ -275,7 +275,14 @@ async function cancelDeletion(userId) {
 async function completeOnboarding(userId, data) {
   logger.info("Completing onboarding for:", { userId });
   try {
-    const { department, semester, subjects, consent_data_collection, consent_ai_analysis } = data;
+    const {
+      department,
+      semester,
+      subjects,
+      consent_data_collection,
+      consent_mood_tracking,
+      consent_ai_analysis,
+    } = data;
     
     await query(
       `UPDATE profiles 
@@ -285,14 +292,16 @@ async function completeOnboarding(userId, data) {
            semester = ?,
            subjects = ?,
            consent_data_collection = ?,
+           consent_mood_tracking = ?,
            consent_ai_analysis = ?
        WHERE user_id = ?`,
       [
         department, 
         semester, 
         JSON.stringify(subjects || []), 
-        consent_data_collection ? 1 : 0, 
-        consent_ai_analysis ? 1 : 0, 
+        consent_data_collection ? 1 : 0,
+        consent_mood_tracking ? 1 : 0,
+        consent_ai_analysis ? 1 : 0,
         userId
       ]
     );

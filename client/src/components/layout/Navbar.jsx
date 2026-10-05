@@ -66,14 +66,31 @@ export default function Navbar() {
     }`;
 
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  const isStudent = user?.role === 'student';
+  const isFaculty = user?.role === 'faculty';
 
   const authenticatedLinks = isAdmin 
-    ? [{ to: '/admin', label: 'Admin Panel', id: 'nav-admin' }]
+    ? [
+        { to: '/admin', label: 'Admin Panel', id: 'nav-admin' },
+        { to: '/complaint-review', label: 'Escalated Complaints', id: 'nav-complaint-review' },
+        { to: '/notices', label: 'Notice Board', id: 'nav-notices' },
+      ]
     : [
         { to: '/dashboard', label: 'Dashboard', id: 'nav-dashboard' },
         { to: '/chat', label: 'Messages', id: 'nav-chat' },
         { to: '/leaderboard', label: 'Leaderboard', id: 'nav-leaderboard' },
-        { to: '/chat?tab=academic', label: 'Academic Board', id: 'nav-academic' }
+        { to: '/chat?tab=academic', label: 'Academic Board', id: 'nav-academic' },
+        ...(isStudent ? [
+          { to: '/mood',       label: '😊 Mood',       id: 'nav-mood' },
+          { to: '/complaints', label: '🚩 Complaints', id: 'nav-complaints' },
+          { to: '/resources',  label: 'Resources',     id: 'nav-resources' },
+          { to: '/notices', label: 'Notice Board', id: 'nav-notices' },
+        ] : []),
+        ...(isFaculty ? [
+          { to: '/complaint-review', label: 'Faculty Complaints', id: 'nav-complaint-review' },
+          { to: '/resources', label: 'Resource Review', id: 'nav-resources' },
+          { to: '/notices', label: 'Notice Board', id: 'nav-notices' },
+        ] : [])
       ];
 
   return (

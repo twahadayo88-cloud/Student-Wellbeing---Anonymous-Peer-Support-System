@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS chat_requests (
   sender_id INT NOT NULL,
   receiver_id INT NOT NULL,
   subject_context VARCHAR(255),
+  academic_request_id INT NULL,
   status ENUM('pending','accepted','declined','expired') DEFAULT 'pending',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   expires_at DATETIME,
@@ -71,28 +72,15 @@ ALTER TABLE chat_messages ADD COLUMN is_broadcast BOOLEAN DEFAULT FALSE;
 ALTER TABLE chat_messages ADD COLUMN chat_mode ENUM('chat_only', 'study_group', 'campus_meeting') DEFAULT 'chat_only';
 ALTER TABLE chat_messages ADD COLUMN expires_at DATETIME NULL;
 
--- 7. Crisis SOS Records
-CREATE TABLE IF NOT EXISTS sos_records (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  student_id INT NOT NULL,
-  category ENUM('self-harm', 'harassment', 'medical', 'other') DEFAULT 'other',
-  severity ENUM('LOW', 'MEDIUM', 'HIGH') DEFAULT 'LOW',
-  message TEXT NULL,
-  status ENUM('active', 'resolved', 'anonymous_support') DEFAULT 'active',
-  attached_mood_data JSON NULL,
-  assigned_faculty_id INT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  resolved_at DATETIME NULL,
-  FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
-  FOREIGN KEY (assigned_faculty_id) REFERENCES users(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 
 -- 8. Mood Tracking (Core Wellbeing Hub Dependency)
 CREATE TABLE IF NOT EXISTS mood_entries (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
   mood_score INT NOT NULL,
-  note TEXT NULL,
+  notes TEXT NULL,
+  consecutive_low_count INT NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   INDEX idx_mood_user (user_id)
@@ -154,6 +142,8 @@ CREATE TABLE IF NOT EXISTS academic_requests (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (matched_helper_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE chat_requests ADD COLUMN academic_request_id INT NULL;
 
 CREATE TABLE IF NOT EXISTS helper_listings (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -237,3 +227,27 @@ CREATE TABLE IF NOT EXISTS monthly_leaderboard (
   UNIQUE KEY unique_user_month (user_id, month_year),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS helper_feedback (
+  id               INT AUTO_INCREMENT PRIMARY KEY,
+  request_id       INT NOT NULL,
+  helper_user_id   INT NOT NULL,
+  requester_user_id INT NOT NULL,
+  rating           TINYINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_feedback_per_request (request_id, helper_user_id),
+  FOREIGN KEY (request_id)        REFERENCES academic_requests(id) ON DELETE CASCADE,
+  FOREIGN KEY (helper_user_id)    REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (requester_user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS chat_offer_exclusions (
+  id                   INT AUTO_INCREMENT PRIMARY KEY,
+  academic_request_id  INT NOT NULL,
+  helper_user_id       INT NOT NULL,
+  created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_exclusion (academic_request_id, helper_user_id),
+  FOREIGN KEY (academic_request_id) REFERENCES academic_requests(id) ON DELETE CASCADE,
+  FOREIGN KEY (helper_user_id)      REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

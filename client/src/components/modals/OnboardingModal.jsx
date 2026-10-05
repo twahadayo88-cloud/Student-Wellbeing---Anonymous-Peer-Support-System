@@ -34,7 +34,8 @@ export default function OnboardingModal({ isOpen, onClose, anonymousId }) {
         department,
         semester: semester ? parseInt(semester, 10) : null,
         subjects,
-        consent_data_collection: consentMood,
+        consent_data_collection: consentAnalytics,
+        consent_mood_tracking: consentMood,
         consent_ai_analysis: consentAnalytics
       };
 
@@ -83,7 +84,7 @@ export default function OnboardingModal({ isOpen, onClose, anonymousId }) {
             </p>
             <ul className="text-left text-xs text-surface-500 space-y-2 bg-surface-50 dark:bg-surface-900 p-4 rounded-xl w-full">
               <li>• No real names or emails in chats.</li>
-              <li>• Harassment triggers immediate SOS.</li>
+              <li>• Report harmful content through the platform review flow.</li>
               <li>• Be supportive and empathetic.</li>
             </ul>
             <label className="flex items-center gap-2 cursor-pointer pt-2">

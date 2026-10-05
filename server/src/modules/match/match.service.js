@@ -1,57 +1,85 @@
 const { query } = require('../../config/db.config');
 const safeParse = require('../../utils/safeParse');
 
+function configuredScore(name, fallback) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+const MATCH_WEIGHTS = {
+  subject: Math.max(0, configuredScore('MATCH_WEIGHT_SUBJECT', 40)),
+  semester: Math.max(0, configuredScore('MATCH_WEIGHT_SEMESTER', 25)),
+  trust: Math.max(0, configuredScore('MATCH_WEIGHT_TRUST', 20)),
+  activity: Math.max(0, configuredScore('MATCH_WEIGHT_ACTIVITY', 15)),
+};
+const MIN_TRUST_SCORE = Math.max(0, Math.min(100, configuredScore('MATCH_MIN_TRUST_SCORE', 30)));
+
 async function getRecommendations(userId) {
   const [meRows] = await query('SELECT p.*, u.role FROM profiles p JOIN users u ON p.user_id = u.id WHERE p.user_id = ?', [userId]);
   const me = meRows[0];
   
   // Safe exit if profile doesn't exist – prevents downstream property access crashes
-  if (!me) return [];
+  if (!me || me.role !== 'student') return [];
 
   const mySubjects = safeParse(me.subjects);
-  const mySkills = safeParse(me.skills);
+  const weightTotal = Object.values(MATCH_WEIGHTS).reduce((total, weight) => total + Math.max(0, weight), 0) || 1;
 
   const [candidates] = await query(`
-    SELECT p.*, u.role, bt.current_tier as badge_tier
+    SELECT p.*, u.role, bt.current_tier as badge_tier,
+      GREATEST(
+        COALESCE(p.updated_at, '1970-01-01'),
+        COALESCE((
+          SELECT MAX(cm.created_at)
+          FROM chat_messages cm
+          WHERE cm.sender_id = p.user_id OR cm.receiver_id = p.user_id
+        ), '1970-01-01')
+      ) AS recent_activity_at
     FROM profiles p
     JOIN users u ON p.user_id = u.id
     LEFT JOIN badge_tiers bt ON p.user_id = bt.user_id
     WHERE u.role = 'student' 
       AND p.user_id != ?
       AND (u.deletion_scheduled_at IS NULL OR u.deletion_scheduled_at > NOW())
-      AND p.trust_score > 30
-  `, [userId]);
+      AND p.trust_score >= ?
+  `, [userId, MIN_TRUST_SCORE]);
 
   const scored = candidates.map(c => {
-    let score = 0;
     const cSubjects = safeParse(c.subjects);
-    const cSkills = safeParse(c.skills);
-    
-    const subjMatches = mySubjects.filter(s => cSubjects.includes(s)).length;
-    score += subjMatches * 5;
-
-    const skillMatches = mySkills.filter(s => cSkills.includes(s)).length;
-    score += skillMatches * 3;
-
-    const badgeTier = c.badge_tier || 'bronze';
-
-    if (me.semester && c.semester && me.semester === c.semester) score += 2;
-    if (me.department && c.department && me.department === c.department) score += 2;
-    
-    // Badge tier weighting
-    if (badgeTier === 'platinum') score += 15;
-    else if (badgeTier === 'gold') score += 10;
-    else if (badgeTier === 'silver') score += 5;
-
-    if (c.trust_score > 70) score += 10;
+    const subjectScore = mySubjects.length
+      ? Math.min(mySubjects.filter(subject => cSubjects.includes(subject)).length / mySubjects.length, 1)
+      : 0;
+    const mySemester = Number(me.semester);
+    const candidateSemester = Number(c.semester);
+    const semesterGap = Number.isFinite(mySemester) && Number.isFinite(candidateSemester)
+      ? Math.abs(mySemester - candidateSemester)
+      : (me.semester && c.semester && me.semester === c.semester ? 0 : Infinity);
+    const semesterScore = semesterGap === 0 ? 1
+      : semesterGap === 1 ? 0.75
+        : semesterGap === 2 ? 0.5
+          : semesterGap === 3 ? 0.25 : 0;
+    const trustScore = Math.max(0, Math.min(100, Number(c.trust_score) || 0)) / 100;
+    const activityDate = c.recent_activity_at ? new Date(c.recent_activity_at) : null;
+    let activityScore = 0;
+    if (activityDate && !Number.isNaN(activityDate.getTime())) {
+      const ageInDays = (Date.now() - activityDate.getTime()) / (24 * 60 * 60 * 1000);
+      if (ageInDays <= 1) activityScore = 1;
+      else if (ageInDays <= 7) activityScore = 0.8;
+      else if (ageInDays <= 30) activityScore = 0.5;
+      else if (ageInDays <= 90) activityScore = 0.2;
+    }
+    const score = (
+      subjectScore * Math.max(0, MATCH_WEIGHTS.subject) +
+      semesterScore * Math.max(0, MATCH_WEIGHTS.semester) +
+      trustScore * Math.max(0, MATCH_WEIGHTS.trust) +
+      activityScore * Math.max(0, MATCH_WEIGHTS.activity)
+    ) / weightTotal;
 
     return {
       anonymous_id: c.anonymous_id,
       subjects: cSubjects,
-      skills: cSkills,
       department: c.department || '',
       semester: c.semester || null,
-      badge_tier: badgeTier,
+      badge_tier: c.badge_tier || 'bronze',
       _score: score
     };
   });
@@ -65,31 +93,19 @@ async function getRecommendations(userId) {
   });
 }
 
-async function getFacultyFallback() {
-  const [faculty] = await query(`
-    SELECT p.name, p.department, p.designation, p.subjects, p.office_hours, p.anonymous_id 
-    FROM profiles p
-    JOIN users u ON p.user_id = u.id
-    WHERE (u.role = 'faculty' OR u.role = 'admin')
-      AND (u.deletion_scheduled_at IS NULL OR u.deletion_scheduled_at > NOW())
-  `);
-
-  return faculty.map(f => ({
-    name: f.name || 'Anonymous Faculty',
-    department: f.department || '',
-    designation: f.designation || '',
-    subjects: safeParse(f.subjects),
-    office_hours: safeParse(f.office_hours),
-    anonymous_id: f.anonymous_id
-  }));
-}
-
 async function getPendingRequests(userId) {
   // Auto-expire requests before fetching
   await query('UPDATE chat_requests SET status = "expired" WHERE status = "pending" AND expires_at < NOW()');
+  await query(`
+    UPDATE academic_requests ar
+    JOIN chat_requests cr ON cr.academic_request_id = ar.id
+    SET ar.status = 'open', ar.matched_helper_id = NULL, ar.matched_at = NULL
+    WHERE cr.status = 'expired' AND ar.status = 'matched' AND ar.matched_at IS NULL
+  `);
 
   const [incoming] = await query(`
-    SELECT r.id, r.subject_context, r.status, r.created_at, p.anonymous_id as sender_anonymous_id
+    SELECT r.id, r.academic_request_id, r.subject_context, r.status, r.created_at, r.expires_at,
+      p.anonymous_id as sender_anonymous_id
     FROM chat_requests r
     JOIN profiles p ON r.sender_id = p.user_id
     WHERE r.receiver_id = ? AND r.status = 'pending'
@@ -107,6 +123,5 @@ async function getPendingRequests(userId) {
 
 module.exports = {
   getRecommendations,
-  getFacultyFallback,
   getPendingRequests
 };

@@ -13,13 +13,4 @@ const getRecommendations = asyncHandler(async (req, res) => {
   });
 });
 
-const getFacultyFallback = asyncHandler(async (req, res) => {
-  const faculty = await matchService.getFacultyFallback();
-
-  res.status(HTTP_STATUS.OK).json({
-    success: true,
-    data: faculty,
-  });
-});
-
-module.exports = { getRecommendations, getFacultyFallback };
+module.exports = { getRecommendations };

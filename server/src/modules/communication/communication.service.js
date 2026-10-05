@@ -1,28 +1,7 @@
 const { query } = require('../../config/db.config');
 const crypto = require('crypto');
 const env = require('../../config/env.config');
-const tf = require('@tensorflow/tfjs');
-const toxicity = require('@tensorflow-models/toxicity');
-const logger = require('../../utils/logger');
-const { ROLES } = require('../../utils/constants');
-
-// Toxicity model configuration
-const TOXICITY_THRESHOLD = 0.5;
-let toxicityModel = null;
-
-async function initToxicityModel() {
-  try {
-    // Load the model with labels we care about
-    const labelsToInclude = ['identity_attack', 'insult', 'threat', 'sexual_explicit'];
-    toxicityModel = await toxicity.load(TOXICITY_THRESHOLD, labelsToInclude);
-    logger.info('✓ TensorFlow Toxicity Model loaded successfully');
-  } catch (err) {
-    logger.error('Failed to load TensorFlow Toxicity Model', { error: err.message });
-  }
-}
-
-// Initialise model on startup
-initToxicityModel();
+const AppError = require('../../utils/AppError');
 
 // E2E Encryption Config setup
 // Fallback logic to protect deployment crashes if secret missing momentarily. Use derived key.
@@ -70,6 +49,7 @@ async function ensureChatTablesExist() {
       chat_mode VARCHAR(50) DEFAULT 'chat_only',
       is_flagged BOOLEAN DEFAULT FALSE,
       seen_at DATETIME NULL,
+      expires_at DATETIME NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -102,17 +82,10 @@ async function ensureChatTablesExist() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `);
 
-  // NOTE: sos_records table is created by database_migration.sql with the full schema.
-  // Do NOT create it here — the migration schema includes student_id, category, severity,
-  // status, attached_mood_data, assigned_faculty_id, resolved_at.
 }
 
 // Execute on service initialization
 ensureChatTablesExist().catch(console.error);
-
-// Chat Log Expiry Worker Placeholder
-// TODO: Set up a CRON job -> DELETE FROM chat_messages WHERE is_flagged = FALSE AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
-
 
 async function getAnonymousIdByUserId(userId) {
   const [rows] = await query('SELECT anonymous_id FROM profiles WHERE user_id = ?', [userId]);
@@ -127,118 +100,6 @@ async function getUserIdByAnonymousId(anonymousId) {
 async function getUserRoleById(userId) {
   const [rows] = await query('SELECT role FROM users WHERE id = ?', [userId]);
   return rows.length ? rows[0].role : null;
-}
-
-async function moderateMessage(message) {
-  const text = message.toLowerCase();
-
-  // 1. Keyword-based immediate High/Medium Severity (Privacy First)
-  const selfHarmKeywords = ['suicide', 'kill myself', 'end my life', 'self-harm', 'die', 'cutting myself', 'khud ko maar lunga', 'marna chahta hoon', 'jeena nahi chahta'];
-  const threatKeywords = ['murder', 'kill you', 'find you', 'hurt you', 'beat you', 'track you', 'maar dunga', 'khatam kar dunga', 'dekh lunga', 'nahi chodunga'];
-  const insultKeywords = ['stupid', 'idiot', 'dumb', 'loser', 'pathetic', 'shut up', 'hate you', 'bewaqoof', 'gadha', 'jahil', 'kamina', 'bakwaas', 'ullu'];
-
-  const hasSelfHarm = selfHarmKeywords.some(kw => text.includes(kw));
-  const hasThreat = threatKeywords.some(kw => text.includes(kw));
-  const hasInsult = insultKeywords.some(kw => text.includes(kw));
-
-  if (hasSelfHarm) return { isFlagged: true, severity: 'HIGH', category: 'self-harm' };
-  if (hasThreat) return { isFlagged: true, severity: 'HIGH', category: 'threat' };
-  if (hasInsult) return { isFlagged: true, severity: 'MEDIUM', category: 'insult' };
-
-  // 2. TensorFlow Toxicity Scan (Local/Private)
-  // NOTE: @tensorflow-models/toxicity@1.2.2 is incompatible with @tensorflow/tfjs@3.18.0
-  // causing "forwardFunc_1 is not a function". If classify crashes, we disable the model
-  // permanently and fall back to keyword-only moderation to prevent error spam.
-  if (toxicityModel) {
-    try {
-      const predictions = await toxicityModel.classify([message]);
-
-      let maxSeverity = 'LOW';
-      let flaggedCategory = null;
-
-      predictions.forEach(p => {
-        const score = p.results[0].probabilities[1];
-
-        if (p.results[0].match || score > 0.5) {
-          if (p.label === 'threat' && score > 0.9) {
-            maxSeverity = 'HIGH';
-            flaggedCategory = 'threat';
-          } else if ((p.label === 'identity_attack' || p.label === 'insult') && score > 0.5) {
-            if (maxSeverity !== 'HIGH') maxSeverity = 'MEDIUM';
-            flaggedCategory = p.label;
-          }
-        }
-      });
-
-      return {
-        isFlagged: maxSeverity !== 'LOW',
-        severity: maxSeverity,
-        category: flaggedCategory
-      };
-    } catch (err) {
-      // Disable model permanently on crash to stop repeated error spam
-      logger.warn('⚠ TensorFlow Toxicity model disabled due to runtime error (tfjs version mismatch). Falling back to keyword-only moderation.', { error: err.message });
-      toxicityModel = null;
-    }
-  }
-
-  return { isFlagged: false, severity: 'LOW', category: null };
-}
-
-async function storeMoodEntry(userId, moodScore, notes = null) {
-  await query(
-    'INSERT INTO mood_entries (user_id, mood_score, notes) VALUES (?, ?, ?)',
-    [userId, moodScore, notes]
-  );
-}
-
-async function getRecentMoodHistory(userId, limit = 5) {
-  const safeLimit = parseInt(limit, 10) || 5;
-  const [rows] = await query(
-    `SELECT mood_score, notes, created_at FROM mood_entries WHERE user_id = ? ORDER BY created_at DESC LIMIT ${safeLimit}`,
-    [userId]
-  );
-  return rows;
-}
-
-async function markSOSResolved(sosId, facultyId) {
-  await query(
-    'UPDATE sos_records SET status = \'resolved\', resolved_at = NOW(), assigned_faculty_id = ? WHERE id = ?',
-    [facultyId, sosId]
-  );
-
-  // BUG-015 FIX: fetch student_id not user_id
-  const [rows] = await query('SELECT student_id FROM sos_records WHERE id = ?', [sosId]);
-  if (rows.length) {
-    const userId = rows[0].student_id;
-    const executeAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    await query(
-      'INSERT INTO scheduled_tasks (user_id, task_type, execute_at, payload) VALUES (?, ?, ?, ?)',
-      [userId, 'wellness_checkin', executeAt, JSON.stringify({ sos_id: sosId })]
-    );
-  }
-}
-
-async function getDepartmentFaculty(department) {
-  // BUG-019 FIX: Use actual DB ENUM values ('faculty','admin','super_admin')
-  // counselor_admin/dept_admin are not in the DB ENUM so we use 'admin'/'super_admin'
-  const [rows] = await query(`
-    SELECT u.id, u.role, p.anonymous_id, p.office_hours 
-    FROM users u
-    JOIN profiles p ON u.id = p.user_id
-    WHERE p.department = ? AND u.role IN ('faculty', 'counselor_admin', 'dept_admin', 'admin', 'super_admin')
-      AND (u.deletion_scheduled_at IS NULL OR u.deletion_scheduled_at > NOW())
-  `, [department]);
-  return rows;
-}
-
-async function storeSOSRecord(userId, triggerReason) {
-  const safeReason = triggerReason || 'Emergency SOS';
-  const [result] = await query(
-    'INSERT INTO sos_records (user_id, student_id, trigger_reason, category, severity, status) VALUES (?, ?, ?, ?, \'high\', \'pending\')',
-    [userId, userId, safeReason, 'other']
-  );
-  return result.insertId;
 }
 
 async function checkIfBlocked(senderId, receiverId) {
@@ -277,6 +138,7 @@ async function getUserConversations(userId) {
       (SELECT COUNT(*) FROM chat_messages unread WHERE unread.sender_id = p.user_id AND unread.receiver_id = ? AND unread.seen_at IS NULL) as unread_count
     FROM chat_requests cr
     JOIN profiles p ON p.user_id = (CASE WHEN cr.sender_id = ? THEN cr.receiver_id ELSE cr.sender_id END)
+    JOIN users peer_user ON peer_user.id = p.user_id AND peer_user.role = 'student'
     LEFT JOIN chat_messages m ON m.id = (
         SELECT id FROM chat_messages 
         WHERE (sender_id = ? AND receiver_id = p.user_id) OR (sender_id = p.user_id AND receiver_id = ?) 
@@ -307,6 +169,11 @@ async function getConversationMessages(userId, conversationId) {
 
   if (requestRows.length === 0) return [];
   const { sender_id, receiver_id } = requestRows[0];
+
+  const chatService = require('../chat/chat.service');
+  if (!await chatService.isAcceptedStudentConversation(sender_id, receiver_id)) {
+    throw AppError.forbidden('This conversation is not an approved student chat');
+  }
 
   // Security: Check if user is participant
   if (sender_id !== userId && receiver_id !== userId) {
@@ -374,8 +241,6 @@ module.exports = {
   getAnonymousIdByUserId,
   getUserIdByAnonymousId,
   getUserRoleById,
-  moderateMessage,
-  storeSOSRecord,
   checkIfBlocked,
   storeMessage,
   markMessageSeen,
@@ -383,10 +248,6 @@ module.exports = {
   getConversationMessages,
   blockUser,
   reportUser,
-  storeMoodEntry,
-  getRecentMoodHistory,
-  markSOSResolved,
-  getDepartmentFaculty,
   storeBroadcast,
   getDepartmentBroadcasts
 };

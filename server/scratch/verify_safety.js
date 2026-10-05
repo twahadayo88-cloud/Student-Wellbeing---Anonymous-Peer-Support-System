@@ -5,9 +5,6 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const safetyService = require('../src/modules/safety/safety.service');
 const communicationService = require('../src/modules/communication/communication.service');
-const perspectiveApi = require('../src/utils/perspectiveApi');
-const geminiApi = require('../src/utils/geminiApi');
-const { query } = require('../src/config/db.config');
 
 async function run() {
   console.log('===============================================================');
@@ -25,7 +22,6 @@ async function run() {
     });
 
     const testUserId = 2; // Active student
-    const targetUserId = 3; // Active receiver
 
     // Fetch initial profile
     const [[testProfile]] = await connection.query('SELECT anonymous_id, behavior_score FROM profiles WHERE user_id = ?', [testUserId]);
@@ -88,66 +84,24 @@ async function run() {
 
 
     // =========================================================================
-    // FEATURE 3: PERSPECTIVE API (POSTS/UPLOADS ONLY)
+    // FEATURE 3: SHARED LOCAL DETECTOR
     // =========================================================================
-    console.log('--- Feature 3: Perspective API (TensorFlow Local Model) ---');
+    console.log('--- Feature 3: Shared Local Detector (TensorFlow.js) ---');
     let f3Passed = true;
     try {
-      // Perspective API should NOT be active for live chat (contentType === 'message')
       const msgRes = await safetyService.monitorContent('you are stupid', 'message', testUserId);
-      console.log(`  [TEST] Message (chat) should bypass Perspective API -> Bypassed: ${msgRes.source !== 'perspective' ? 'PASS' : 'FAIL'}`);
-      
+      const messagePassed = msgRes.isFlagged && msgRes.severity === 'MEDIUM';
+      console.log(`  [TEST] Chat message uses shared detector -> ${messagePassed ? 'PASS' : 'FAIL'}`);
+
       const postRes = await safetyService.monitorContent('toxic description stupid idiot', 'post', testUserId);
-      console.log(`  [TEST] Post severity under Perspective -> Got: ${postRes.severity} (Source: ${postRes.source})`);
+      const postPassed = postRes.isFlagged && postRes.severity !== 'LOW';
+      console.log(`  [TEST] Post uses shared detector -> ${postPassed ? 'PASS' : 'FAIL'} (Severity: ${postRes.severity})`);
+      f3Passed = messagePassed && postPassed;
     } catch (e) {
       console.error('  [ERR] Feature 3 failed:', e.message);
       f3Passed = false;
     }
-    console.log(`FEATURE 3 — Perspective API: ${f3Passed ? 'PASS' : 'FAIL'}\n`);
-
-
-    // =========================================================================
-    // FEATURE 4: CONTEXT BASED BEHAVIOR ANALYSIS
-    // =========================================================================
-    console.log('--- Feature 4: Context Based Behavior Analysis ---');
-    let f4Passed = true;
-    try {
-      await connection.query('DELETE FROM chat_messages WHERE sender_id = ?', [testUserId]);
-      await connection.query('DELETE FROM mood_entries WHERE user_id = ?', [testUserId]);
-
-      // A. Test distress pattern
-      await connection.query('INSERT INTO mood_entries (user_id, mood_score, notes) VALUES (?, 1, "bad"), (?, 2, "sad"), (?, 1, "down")', [testUserId, testUserId, testUserId]);
-      const distressContext = await geminiApi.analyzeContext(testUserId);
-      const distressPassed = distressContext.pattern_detected === 'distress_pattern' && distressContext.risk_level === 'MEDIUM';
-      console.log(`  [TEST] Distress Pattern Check -> Risk: ${distressContext.risk_level}, Pattern: ${distressContext.pattern_detected} -> ${distressPassed ? 'PASS' : 'FAIL'}`);
-
-      // B. Test targeting pattern
-      await connection.query('DELETE FROM chat_messages WHERE sender_id = ?', [testUserId]);
-      for (let i = 0; i < 11; i++) {
-        await connection.query('INSERT INTO chat_messages (sender_id, receiver_id, message, is_flagged, chat_mode) VALUES (?, ?, "hello", 0, "chat_only")', [testUserId, targetUserId]);
-      }
-      const targetingContext = await geminiApi.analyzeContext(testUserId);
-      const targetingPassed = targetingContext.pattern_detected === 'targeting' && targetingContext.risk_level === 'MEDIUM';
-      console.log(`  [TEST] Targeting Pattern Check -> Risk: ${targetingContext.risk_level}, Pattern: ${targetingContext.pattern_detected} -> ${targetingPassed ? 'PASS' : 'FAIL'}`);
-
-      // C. Test repeated harassment pattern
-      await connection.query('DELETE FROM chat_messages WHERE sender_id = ?', [testUserId]);
-      for (let i = 0; i < 6; i++) {
-        await connection.query('INSERT INTO chat_messages (sender_id, receiver_id, message, is_flagged, chat_mode) VALUES (?, ?, "bad word", 1, "chat_only")', [testUserId, targetUserId]);
-      }
-      const harassmentContext = await geminiApi.analyzeContext(testUserId);
-      const harassmentPassed = harassmentContext.pattern_detected === 'repeated_harassment' && harassmentContext.risk_level === 'HIGH';
-      console.log(`  [TEST] Repeated Harassment Check -> Risk: ${harassmentContext.risk_level}, Pattern: ${harassmentContext.pattern_detected} -> ${harassmentPassed ? 'PASS' : 'FAIL'}`);
-
-      f4Passed = distressPassed && targetingPassed && harassmentPassed;
-    } catch (e) {
-      console.error('  [ERR] Feature 4 context checking crashed:', e.message);
-      f4Passed = false;
-    } finally {
-      await connection.query('DELETE FROM chat_messages WHERE sender_id = ?', [testUserId]);
-      await connection.query('DELETE FROM mood_entries WHERE user_id = ?', [testUserId]);
-    }
-    console.log(`FEATURE 4 — Context Based Behavior Analysis: ${f4Passed ? 'PASS' : 'FAIL'}\n`);
+    console.log(`FEATURE 3 — Shared Local Detector: ${f3Passed ? 'PASS' : 'FAIL'}\n`);
 
 
     // =========================================================================

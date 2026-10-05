@@ -4,7 +4,7 @@ const env = require('./config/env.config');
 
 const REQUIRED_TABLES = [
   'users', 'profiles', 'anonymous_id_map', 'chat_requests', 'feedback', 
-  'chat_messages', 'sos_records', 'mood_entries', 'scheduled_tasks', 
+  'chat_messages', 'mood_entries', 'scheduled_tasks',
   'blacklisted_tokens', 'notifications', 'trust_scores', 'violation_history', 'peer_matches'
 ];
 
@@ -45,8 +45,9 @@ async function runHealthCheck() {
       if (colData.length) {
         console.log(`  [USERS] role ENUM defined as: ${colData[0].Type}`);
         const type = colData[0].Type;
-        if (!type.includes('counselor_admin') || !type.includes('dept_admin')) {
-          console.log(`    ❌ Missing counselor_admin or dept_admin in ENUM`);
+        const expectedRoles = ['student', 'faculty', 'admin', 'super_admin'];
+        if (!expectedRoles.every(role => type.includes(role))) {
+          console.log(`    ❌ Role ENUM does not contain exactly the supported application roles`);
         } else {
           console.log(`    ✅ ENUM values match requirements`);
         }
@@ -73,28 +74,6 @@ async function runHealthCheck() {
         console.log(`  [PROFILES] Missing columns: ${missingCols.join(', ')}`);
       } else {
         console.log(`  [PROFILES] ✅ All required columns exist`);
-      }
-    }
-
-    // Check sos_records columns
-    if (existingTables.includes('sos_records')) {
-      const requiredSosCols = [
-        'student_id', 'category', 'severity', 'status', 'attached_mood_data', 
-        'assigned_faculty_id', 'resolved_at'
-      ];
-      const [cols] = await connection.query('SHOW COLUMNS FROM sos_records');
-      const colNames = cols.map(c => c.Field);
-      
-      let missingCols = [];
-      for (const col of requiredSosCols) {
-        if (!colNames.includes(col)) {
-           missingCols.push(col);
-        }
-      }
-      if (missingCols.length) {
-        console.log(`  [SOS_RECORDS] Missing columns: ${missingCols.join(', ')}`);
-      } else {
-        console.log(`  [SOS_RECORDS] ✅ All required columns exist`);
       }
     }
 

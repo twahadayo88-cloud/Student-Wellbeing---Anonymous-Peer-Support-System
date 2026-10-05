@@ -37,9 +37,6 @@ export default function Profile() {
   // Student Fields
   const [semester, setSemester] = useState('');
 
-  // Trust Score (real-time)
-  const [trustScore, setTrustScore] = useState(50);
-
   // GDPR
   const [deleteInput, setDeleteInput] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
@@ -57,7 +54,6 @@ export default function Profile() {
     setConsentMoodTracking(!!p.consent_mood_tracking);
     setConsentMoodData(!!p.consent_data_collection);
     setConsentAnalytics(!!p.consent_ai_analysis);
-    setTrustScore(p.trust_score || 50);
 
     if (p.role === 'faculty' || p.role === 'admin') {
       setName(p.name || '');
@@ -83,32 +79,17 @@ export default function Profile() {
       setLoading(false);
     };
 
-    const onTrustScoreUpdated = (data) => {
-      // data.trust_score comes from trust_score:updated
-      if (data.trust_score !== undefined) setTrustScore(data.trust_score);
-    };
-
-    const onTrustScoreChanged = (data) => {
-      // data.new_score comes from trust:score_changed
-      if (data.new_score !== undefined) setTrustScore(data.new_score);
-      if (data.trust_score !== undefined) setTrustScore(data.trust_score);
-    };
-
     const onBadgeUpgraded = (data) => {
       setProfile(prev => prev ? { ...prev, badge_tier: data.new_tier } : prev);
     };
 
     socket.on('profile:data', onProfileData);
     socket.on('profile:error', onProfileError);
-    socket.on('trust_score:updated', onTrustScoreUpdated);
-    socket.on('trust:score_changed', onTrustScoreChanged);
     socket.on('badge:tier_upgraded', onBadgeUpgraded);
 
     return () => {
       socket.off('profile:data', onProfileData);
       socket.off('profile:error', onProfileError);
-      socket.off('trust_score:updated', onTrustScoreUpdated);
-      socket.off('trust:score_changed', onTrustScoreChanged);
       socket.off('badge:tier_upgraded', onBadgeUpgraded);
     };
   }, [socket, isConnected]);
@@ -255,8 +236,8 @@ export default function Profile() {
               </div>
               {!isAdminUI && (
                 <div className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-100 dark:border-emerald-800/30">
-                  <span className="text-[10px] uppercase font-bold text-emerald-600 block">Trust Rating</span>
-                  <span className="font-bold text-emerald-600">{trustScore} / 100</span>
+                  <span className="text-[10px] uppercase font-bold text-emerald-600 block">Community Badge</span>
+                  <span className="font-bold capitalize text-emerald-600">{profile?.badge_tier || 'bronze'}</span>
                 </div>
               )}
             </div>
