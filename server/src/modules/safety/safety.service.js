@@ -33,7 +33,7 @@ async function monitorContent(
     ? `Content flagged: ${safetyResult.matchedTerms.join(', ') || 'local toxicity model'}`
     : null;
   const source = safetyResult.matchedTerms.some(term => term.startsWith('ai_flag_'))
-    ? 'tensorflow'
+    ? 'sklearn'
     : safetyResult.isFlagged
       ? 'keyword'
       : 'clean';

@@ -19,13 +19,13 @@ BASE_DIR = os.path.dirname(
 VECTORIZER_PATH = os.path.join(
     BASE_DIR,
     "models",
-    "vectorizer.joblib"
+    "tfidf_vectorizer.pkl"
 )
 
 MODEL_PATH = os.path.join(
     BASE_DIR,
     "models",
-    "toxicity_model.joblib"
+    "baseline_model.pkl"
 )
 
 

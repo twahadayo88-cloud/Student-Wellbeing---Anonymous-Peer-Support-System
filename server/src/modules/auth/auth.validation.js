@@ -20,7 +20,8 @@ function validateRegister(body) {
         errors.push('Personal email addresses are not allowed. Please use your university email.');
       } else {
         if (allowedDomain) {
-           if (!sanitizedEmail.endsWith(allowedDomain)) {
+           const cleanAllowed = allowedDomain.startsWith('@') ? allowedDomain : '@' + allowedDomain;
+           if (!sanitizedEmail.endsWith(cleanAllowed)) {
              errors.push(`Registration is restricted to the authorized university domain (${allowedDomain})`);
            }
         } else {

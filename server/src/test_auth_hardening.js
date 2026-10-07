@@ -21,9 +21,9 @@ async function testAuthHardening() {
   const rolesToTest = [
     { email: 'student@uni.edu.pk', expected: 'student' },
     { email: 'faculty@uni.edu.pk', expected: 'faculty' },
-    { email: 'counselor_john@uni.edu.pk', expected: 'faculty' },
-    { email: 'hod_cs@uni.edu.pk', expected: 'admin' },
-    { email: 'dept_head_ee@uni.edu.pk', expected: 'admin' }
+    { email: 'admin@uni.edu.pk', expected: 'student' }, // Prevent admin self-promotion
+    { email: 'hod_cs@uni.edu.pk', expected: 'student' }, // Prevent admin self-promotion
+    { email: 'dept_head_ee@uni.edu.pk', expected: 'student' } // Prevent admin self-promotion
   ];
 
   rolesToTest.forEach(t => {

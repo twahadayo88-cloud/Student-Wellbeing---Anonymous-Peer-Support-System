@@ -13,25 +13,13 @@ async function findUserByEmail(email) {
 function determineRoleFromEmail(email) {
   const sanitized = email.toLowerCase();
   
-  // Guard clause: Prevent public escalation to super_admin
-  if (sanitized.includes('super_admin') || sanitized.includes('root') || sanitized.includes('sysadmin')) {
+  // Guard clause: Prevent public escalation to super_admin or admin
+  if (sanitized.includes('super_admin') || sanitized.includes('root') || sanitized.includes('sysadmin') || sanitized.includes('admin') || sanitized.includes('hod_') || sanitized.includes('dept_head_')) {
     return ROLES.STUDENT; 
-  }
-  
-  if (sanitized.includes('counselor')) {
-    return ROLES.FACULTY;
-  }
-
-  if (sanitized.includes('hod_') || sanitized.includes('dept_head_')) {
-    return ROLES.ADMIN;
   }
 
   if (sanitized.includes('faculty') || sanitized.includes('staff')) {
     return ROLES.FACULTY;
-  }
-  
-  if (sanitized.includes('admin')) {
-    return ROLES.ADMIN;
   }
   
   return ROLES.STUDENT;

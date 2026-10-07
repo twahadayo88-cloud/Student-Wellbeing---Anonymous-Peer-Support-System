@@ -1,9 +1,11 @@
-const toxicity = require('@tensorflow-models/toxicity');
 const logger = require('../utils/logger');
 const { query } = require('../config/db.config');
 
-const TOXICITY_THRESHOLD = 0.5;
-let model = null;
+const AI_MODEL_URL = process.env.AI_MODEL_URL || 'http://127.0.0.1:8000/predict';
+const AI_MODEL_TIMEOUT_MS = 3000;
+let aiServiceHealthy = true;
+let aiServiceRetryAt = 0;
+const AI_SERVICE_RETRY_MS = 60000;
 let moderationRulesCache = [];
 let moderationRulesLoadedAt = 0;
 const MODERATION_RULES_CACHE_MS = 15000;
@@ -106,22 +108,34 @@ function invalidateModerationRulesCache() {
   moderationRulesLoadedAt = 0;
 }
 
-async function initModel() {
-  if (model) return model;
+async function queryAiModel(text) {
+  // Skip calls while the AI service is known to be down (retry once per cooldown window).
+  if (!aiServiceHealthy && Date.now() < aiServiceRetryAt) return null;
   try {
-    const labelsToInclude = ['identity_attack', 'insult', 'threat', 'sexual_explicit', 'toxicity', 'severe_toxicity'];
-    model = await toxicity.load(TOXICITY_THRESHOLD, labelsToInclude);
-    logger.info('✓ Safety Monitor: TensorFlow Toxicity Model loaded');
-    return model;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), AI_MODEL_TIMEOUT_MS);
+    const res = await fetch(AI_MODEL_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`AI model responded ${res.status}`);
+    const data = await res.json();
+    aiServiceHealthy = true;
+    return data;
   } catch (err) {
-    logger.error('Failed to load Toxicity Model', { error: err.message });
+    if (aiServiceHealthy) logger.warn('AI model service unavailable; falling back to keywords', { error: err.message });
+    aiServiceHealthy = false;
+    aiServiceRetryAt = Date.now() + AI_SERVICE_RETRY_MS;
     return null;
   }
 }
 
 /**
- * Checks text against abusive keywords and TensorFlow.js toxicity model.
- * @param {string} text 
+ * Checks text against abusive keywords and the local sklearn AI model service.
+ * @param {string} text
  * @returns {Promise<{isFlagged: boolean, severity: 'low'|'medium'|'high', matchedTerms: string[], sentimentScore: number}>}
  */
 async function analyzeContent(text) {
@@ -153,25 +167,13 @@ async function analyzeContent(text) {
   let severity = 'low';
 
   let sentimentScore = 0;
-  
-  const toxicityModel = await initModel();
-  if (toxicityModel) {
-    try {
-      const predictions = await toxicityModel.classify([content]);
-      
-      predictions.forEach(p => {
-        const score = p.results[0].probabilities[1];
-        if (score > sentimentScore) sentimentScore = score;
-        
-        if (p.results[0].match || score > TOXICITY_THRESHOLD) {
-          isFlagged = true;
-          if (!matchedTerms.includes(p.label)) {
-            matchedTerms.push(`ai_flag_${p.label}`);
-          }
-        }
-      });
-    } catch (err) {
-      logger.error('Toxicity analysis failed', { error: err.message });
+
+  const aiResult = await queryAiModel(content);
+  if (aiResult) {
+    sentimentScore = typeof aiResult.probability === 'number' ? aiResult.probability : 0;
+    if (aiResult.is_abusive || (typeof aiResult.probability === 'number' && aiResult.probability >= (aiResult.threshold || 0.7))) {
+      isFlagged = true;
+      matchedTerms.push('ai_flag_sklearn');
     }
   }
 

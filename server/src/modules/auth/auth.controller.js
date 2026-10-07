@@ -26,6 +26,14 @@ const register = asyncHandler(async (req, res) => {
   }
 
   const { email, password } = req.body;
+  const env = require('../../config/env.config');
+  const allowedDomain = env.allowedEmailDomain;
+  if (allowedDomain) {
+    const cleanAllowed = allowedDomain.startsWith('@') ? allowedDomain.toLowerCase() : '@' + allowedDomain.toLowerCase();
+    if (!email.toLowerCase().endsWith(cleanAllowed)) {
+      throw AppError.badRequest(`Registration is restricted to ${allowedDomain} email addresses`);
+    }
+  }
 
   const existingUser = await authService.findUserByEmail(email.toLowerCase());
   if (existingUser) {

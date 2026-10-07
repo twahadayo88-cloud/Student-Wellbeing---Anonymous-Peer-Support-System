@@ -1,2 +1,0 @@
-04:04:34 [32minfo[39m: ✓ MySQL connected successfully {"service":"peerbridge","host":"localhost","database":"peerbridge"}
-04:04:34 [32minfo[39m: ✓ Socket.io initialised with Security, E2E placeholder, and Moderation Pipelines {"service":"peerbridge"}
