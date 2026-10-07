@@ -33,3 +33,7 @@ coverage/
 # Temp
 tmp/
 temp/
+
+ai-model/datasets/test/unseen_test_dataset.csv
+
+ai-model/datasets/
