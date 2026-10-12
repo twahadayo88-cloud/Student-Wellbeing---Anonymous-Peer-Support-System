@@ -31,36 +31,7 @@ const abusiveKeywords = [
   'maar dunga', 'khatam kar dunga', 'dekh lunga', 'nahi chodunga', 'barbad kar dunga',
   'thok dunga', 'jan se maar dunga', 'khoon kar dunga'
 ];
-/*
-  const highSeverityKeywords = [
-    'suicide', 'kill myself', 'end my life', 'want to die', 'hurt myself', 'self harm',
-    'cutting myself', 'overdose', 'no reason to live', 'better off dead', 'end it all',
-    'khud ko maar lunga', 'khud ko khatam kar lunga', 'marna chahta hoon',
-    'marna chahti hoon', 'jeena nahi chahta', 'jeena nahi chahti',
-    'zindagi khatam karna chahta hoon', 'apni jaan dena chahta hoon',
-    'mar jana chahta hoon', 'khud ko hurt karunga', 'zindagi se tang aa gaya hoon',
-    'jina nahi chahta', 'خود کو مارنا', 'مرنا چاہتا ہوں', 'زندگی ختم کرنا',
-    'جینا نہیں چاہتا', 'خود کو نقصان',
-    'murder', 'kill you', 'find you', 'hunt you down', 'hurt you', 'beat you',
-    'destroy you', 'end you', 'come for you', 'make you pay', 'you will regret',
-    'i will get you', 'watch your back',
-    'maar dunga', 'maar dungi', 'khatam kar dunga', 'khatam kar dungi',
-    'dekh lunga', 'dekh lungi', 'nahi chodunga', 'nahi chodungi', 'barbad kar dunga',
-    'barbad kar dungi', 'thok dunga', 'utha lunga', 'ghar aa jaunga',
-    'address pata hai mujhe', 'chhod nahi dunga', 'tang karunga', 'laat marunga',
-    'pitai karunga', 'jan se maar dunga', 'khoon kar dunga', 'dekh lena',
-    'bura hoga tera', 'مار دوں گا', 'ختم کر دوں گا', 'دیکھ لوں گا',
-    'نہیں چھوڑوں گا', 'برباد کر دوں گا',
-    'i know where you live', 'i will follow you', 'send me pictures',
-    'meet me alone', 'dont tell anyone', 'keep it secret', 'you owe me',
-    'do what i say', 'address bata', 'ghar bata', 'akele milna',
-    'kisi ko mat batana', 'photo bhejo', 'tasveer bhejo', 'meri baat mano',
-    'kuch nahi kahunga', 'tera pata hai mere paas', 'main jaanta hoon tujhe',
-    'chup rehna warna', 'kisi ko bataya toh', 'گھر بتاؤ', 'اکیلے ملنا',
-    'کسی کو مت بتانا', 'تصویر بھیجو', 'چپ رہنا'
-  ];
 
-*/
 const highSeverityKeywords = [
   'suicide', 'kill myself', 'end my life', 'want to die', 'hurt myself', 'self harm',
   'cutting myself', 'overdose', 'no reason to live', 'better off dead', 'end it all',
@@ -165,15 +136,26 @@ async function analyzeContent(text) {
 
   let isFlagged = matchedTerms.length > 0;
   let severity = 'low';
-
   let sentimentScore = 0;
 
   const aiResult = await queryAiModel(content);
   if (aiResult) {
-    sentimentScore = typeof aiResult.probability === 'number' ? aiResult.probability : 0;
-    if (aiResult.is_abusive || (typeof aiResult.probability === 'number' && aiResult.probability >= (aiResult.threshold || 0.7))) {
+    // Extract probability score correctly from API
+    sentimentScore = typeof aiResult.abusive_probability === 'number'
+      ? aiResult.abusive_probability
+      : (typeof aiResult.probability === 'number' ? aiResult.probability : 0);
+
+    // AI Flag condition checking all possible fields
+    const isAiFlagged = aiResult.is_flagged === true ||
+      aiResult.is_abusive === true ||
+      aiResult.category === 0 ||
+      sentimentScore >= (aiResult.threshold || 0.7);
+
+    if (isAiFlagged) {
       isFlagged = true;
-      matchedTerms.push('ai_flag_sklearn');
+      if (!matchedTerms.includes('ai_flag_sklearn')) {
+        matchedTerms.push('ai_flag_sklearn');
+      }
     }
   }
 
@@ -186,9 +168,9 @@ async function analyzeContent(text) {
     severity = 'high';
   } else if (matchedKeywordTerms.length > 0 || customMediumSeverityMatch) {
     severity = 'medium';
-  } else if (sentimentScore > 0.8) {
+  } else if (sentimentScore >= 0.85) {
     severity = 'high';
-  } else if (sentimentScore > 0.6) {
+  } else if (sentimentScore >= 0.70) {
     severity = 'medium';
   }
 

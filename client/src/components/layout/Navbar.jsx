@@ -59,39 +59,38 @@ export default function Navbar() {
 
   // Nav link classes
   const navLinkClass = (path) =>
-    `relative px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
-      isActive(path)
-        ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/30'
-        : 'text-surface-600 dark:text-surface-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-surface-100 dark:hover:bg-surface-800/60'
+    `relative px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${isActive(path)
+      ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/30'
+      : 'text-surface-600 dark:text-surface-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-surface-100 dark:hover:bg-surface-800/60'
     }`;
 
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   const isStudent = user?.role === 'student';
   const isFaculty = user?.role === 'faculty';
 
-  const authenticatedLinks = isAdmin 
+  const authenticatedLinks = isAdmin
     ? [
-        { to: '/admin', label: 'Admin Panel', id: 'nav-admin' },
-        { to: '/complaint-review', label: 'Escalated Complaints', id: 'nav-complaint-review' },
-        { to: '/notices', label: 'Notice Board', id: 'nav-notices' },
-      ]
+      { to: '/admin', label: 'Admin Panel', id: 'nav-admin' },
+      { to: '/complaint-review', label: 'Escalated Complaints', id: 'nav-complaint-review' },
+      { to: '/notices', label: 'Notice Board', id: 'nav-notices' },
+    ]
     : [
-        { to: '/dashboard', label: 'Dashboard', id: 'nav-dashboard' },
-        { to: '/chat', label: 'Messages', id: 'nav-chat' },
-        { to: '/leaderboard', label: 'Leaderboard', id: 'nav-leaderboard' },
-        { to: '/chat?tab=academic', label: 'Academic Board', id: 'nav-academic' },
-        ...(isStudent ? [
-          { to: '/mood',       label: '😊 Mood',       id: 'nav-mood' },
-          { to: '/complaints', label: '🚩 Complaints', id: 'nav-complaints' },
-          { to: '/resources',  label: 'Resources',     id: 'nav-resources' },
-          { to: '/notices', label: 'Notice Board', id: 'nav-notices' },
-        ] : []),
-        ...(isFaculty ? [
-          { to: '/complaint-review', label: 'Faculty Complaints', id: 'nav-complaint-review' },
-          { to: '/resources', label: 'Resource Review', id: 'nav-resources' },
-          { to: '/notices', label: 'Notice Board', id: 'nav-notices' },
-        ] : [])
-      ];
+      { to: '/dashboard', label: 'Dashboard', id: 'nav-dashboard' },
+      { to: '/chat', label: 'Messages', id: 'nav-chat' },
+      { to: '/leaderboard', label: 'Leaderboard', id: 'nav-leaderboard' },
+      { to: '/chat?tab=academic', label: 'Academic Board', id: 'nav-academic' },
+      ...(isStudent ? [
+        { to: '/mood', label: ' Mood', id: 'nav-mood' },
+        { to: '/complaints', label: ' Complaints', id: 'nav-complaints' },
+        { to: '/resources', label: 'Resources', id: 'nav-resources' },
+        { to: '/notices', label: 'Notice Board', id: 'nav-notices' },
+      ] : []),
+      ...(isFaculty ? [
+        { to: '/complaint-review', label: 'Faculty Complaints', id: 'nav-complaint-review' },
+        { to: '/resources', label: 'Resource Review', id: 'nav-resources' },
+        { to: '/notices', label: 'Notice Board', id: 'nav-notices' },
+      ] : [])
+    ];
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 dark:border-surface-800/60 bg-white/70 dark:bg-surface-950/70 backdrop-blur-xl">
@@ -161,9 +160,8 @@ export default function Navbar() {
                     </div>
                     {/* Chevron */}
                     <svg
-                      className={`w-4 h-4 text-surface-400 transition-transform duration-200 ${
-                        profileOpen ? 'rotate-180' : ''
-                      }`}
+                      className={`w-4 h-4 text-surface-400 transition-transform duration-200 ${profileOpen ? 'rotate-180' : ''
+                        }`}
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -184,11 +182,10 @@ export default function Navbar() {
                           {user?.anonymous_id || '—'}
                         </p>
                         {user?.role && (
-                          <span className={`inline-block mt-1.5 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                            user.role === 'faculty' || user.role === 'admin'
+                          <span className={`inline-block mt-1.5 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${user.role === 'faculty' || user.role === 'admin'
                               ? 'bg-accent-100 dark:bg-accent-900/40 text-accent-600 dark:text-accent-400'
                               : 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400'
-                          }`}>
+                            }`}>
                             {user.role}
                           </span>
                         )}
@@ -345,11 +342,10 @@ export default function Navbar() {
                   <>
                     <Link
                       to="/dashboard"
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                        isActive('/dashboard')
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${isActive('/dashboard')
                           ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/30'
                           : 'text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800'
-                      }`}
+                        }`}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
@@ -359,11 +355,10 @@ export default function Navbar() {
 
                     <Link
                       to="/leaderboard"
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                        isActive('/leaderboard')
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${isActive('/leaderboard')
                           ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/30'
                           : 'text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800'
-                      }`}
+                        }`}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 3l3.057-3L12 3.5 15.943 0 19 3v18H5V3z" />
@@ -374,11 +369,10 @@ export default function Navbar() {
 
                     <Link
                       to="/chat?tab=academic"
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                        isActive('/chat?tab=academic')
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${isActive('/chat?tab=academic')
                           ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/30'
                           : 'text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800'
-                      }`}
+                        }`}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l9-5-9-5-9 5 9 5z" />
@@ -391,11 +385,10 @@ export default function Navbar() {
 
                 <Link
                   to="/profile"
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                    isActive('/profile')
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${isActive('/profile')
                       ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/30'
                       : 'text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800'
-                  }`}
+                    }`}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />

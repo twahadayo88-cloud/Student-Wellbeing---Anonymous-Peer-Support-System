@@ -2,6 +2,8 @@ import os
 import re
 
 import joblib
+
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
@@ -54,7 +56,7 @@ THRESHOLD = 0.70
 
 app = FastAPI(
     title="PeerBridge AI Moderation API",
-    description="Abusive content detection service for PeerBridge",
+    description="Abusive and off-topic content detection service for PeerBridge",
     version="1.0.0"
 )
 
@@ -120,7 +122,7 @@ def root():
     return {
         "service": "PeerBridge AI Moderation API",
         "status": "running",
-        "model": "TF-IDF + Logistic Regression",
+        "model": "TF-IDF + SGDClassifier",
         "threshold": THRESHOLD
     }
 
@@ -162,23 +164,23 @@ def predict(request: PredictionRequest):
             [cleaned_text]
         )
 
-        # Abusive probability
-        probability = model.predict_proba(
-            text_vector
-        )[0][1]
+        # Class probabilities: [Prob(Category 0), Prob(Category 1)]
+        # Category 1 = Academic/Study Allowed
+        # Category 0 = Off-Topic / Abusive / Personal Info Blocked
+        probabilities = model.predict_proba(text_vector)[0]
+        prob_academic = float(probabilities[1])
+        prob_abusive = float(probabilities[0])
 
-        # Threshold decision
-        label = int(
-            probability >= THRESHOLD
-        )
+        # Flag message if Academic probability is below threshold (or Abusive prob is high)
+        is_flagged = prob_academic < THRESHOLD
 
         return {
-            "label": label,
-            "is_abusive": bool(label),
-            "probability": round(
-                float(probability),
-                4
-            ),
+            "category": 1 if not is_flagged else 0,
+            "is_flagged": is_flagged,
+            "is_abusive": is_flagged,
+            "confidence": round(max(prob_academic, prob_abusive), 4),
+            "academic_probability": round(prob_academic, 4),
+            "abusive_probability": round(prob_abusive, 4),
             "threshold": THRESHOLD
         }
 
@@ -191,3 +193,11 @@ def predict(request: PredictionRequest):
             status_code=500,
             detail=f"Prediction failed: {str(error)}"
         )
+
+
+# ============================================================
+# AUTO-START UVICORN SERVER
+# ============================================================
+
+if __name__ == "__main__":
+    uvicorn.run("service.app:app", host="127.0.0.1", port=8000, reload=True)
