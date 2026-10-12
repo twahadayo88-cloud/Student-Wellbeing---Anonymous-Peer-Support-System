@@ -5,6 +5,8 @@ import { toast } from 'react-hot-toast';
 import api from '../services/api';
 import useAuth from '../hooks/useAuth';
 import { useSocket } from '../context/SocketContext';
+import Navbar from '../components/layout/Navbar';
+import Footer from '../components/layout/Footer';
 
 const CATEGORIES = [
   { value: 'study_groups', label: 'Study Groups' },
@@ -280,7 +282,9 @@ const NoticeBoard = () => {
   ];
 
   return (
-    <main className="min-h-screen px-4 pb-12 pt-24 sm:px-6 lg:px-8">
+    <>
+      <Navbar />
+      <main className="min-h-screen px-4 pb-12 pt-24 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-5xl space-y-7">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -329,9 +333,10 @@ const NoticeBoard = () => {
             })}</div>
           ) : <div className="rounded-xl border border-surface-200 p-12 text-center text-surface-500 dark:border-surface-800">No posts in this view.</div>
         ) : null}
-      </div>
-    </main>
-  );
-};
-
-export default NoticeBoard;
+            </div>
+          </main>
+            <Footer />
+          </>
+        );
+      };
+      export default NoticeBoard;

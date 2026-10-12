@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Megaphone, MessageSquare, Plus, Users, GraduationCap, Trophy } from 'lucide-react';
+import { Megaphone, MessageSquare, Plus, Users, GraduationCap } from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
-import Footer from '../components/layout/Footer';
 import ChatBox from '../components/chat/ChatBox';
 import AcademicBoard from './AcademicBoard';
 import useAuth from '../hooks/useAuth';
@@ -12,7 +11,6 @@ import { useSocket } from '../context/SocketContext';
 
 export default function Chat() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { socket } = useSocket();
   const [conversations, setConversations] = useState([]);
@@ -275,15 +273,6 @@ export default function Chat() {
             title="Academic Board"
           >
             <GraduationCap size={24} />
-          </button>
-
-          {/* Leaderboard */}
-          <button
-            onClick={() => navigate('/leaderboard')}
-            className="p-3 rounded-xl transition-all text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-800 hover:text-surface-900 dark:hover:text-surface-100"
-            title="Leaderboard"
-          >
-            <Trophy size={24} />
           </button>
         </div>
 

@@ -7,6 +7,8 @@ import { Meh, AlertCircle, CheckCircle2, Bell } from 'lucide-react';
 import api from '../services/api';
 import { toast } from 'react-hot-toast';
 import useAuth from '../hooks/useAuth';
+import Navbar from '../components/layout/Navbar';
+import Footer from '../components/layout/Footer';
 
 const MOOD_OPTIONS = [
   { score: 1, emoji: '😞', label: 'Very Low',    color: '#ef4444', bg: 'bg-red-50 dark:bg-red-900/20',     ring: 'ring-red-400'    },
@@ -120,7 +122,9 @@ const MoodTracker = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 px-4 py-8">
+    <>
+      <Navbar />
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 px-4 pt-28 pb-8">
       <div className="max-w-2xl mx-auto space-y-8">
 
         {/* Header */}
@@ -279,9 +283,10 @@ const MoodTracker = () => {
           Faculty cannot access mood data. Admin and Super Admin can view anonymized department-level trends only.
         </p>
 
-      </div>
-    </div>
-  );
-};
-
-export default MoodTracker;
+            </div>
+          </div>
+            <Footer />
+          </>
+        );
+      };
+      export default MoodTracker;

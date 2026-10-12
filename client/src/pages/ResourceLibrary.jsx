@@ -4,6 +4,8 @@ import { Bookmark, BookOpen, Check, Download, ExternalLink, FileText, RefreshCw,
 import { toast } from 'react-hot-toast';
 import api from '../services/api';
 import useAuth from '../hooks/useAuth';
+import Navbar from '../components/layout/Navbar';
+import Footer from '../components/layout/Footer';
 
 const CATEGORIES = ['Lecture Notes', 'Practice', 'Reference', 'Wellbeing', 'Other'];
 const TABS = [
@@ -215,7 +217,9 @@ export default function ResourceLibrary() {
   const tabs = isFaculty ? [{ id: 'review', label: 'Approval Queue' }] : TABS;
 
   return (
-    <main className="min-h-screen px-4 pb-12 pt-24 sm:px-6 lg:px-8">
+    <>
+      <Navbar />
+      <main className="min-h-screen px-4 pb-12 pt-24 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl space-y-7">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -273,6 +277,8 @@ export default function ResourceLibrary() {
         )}
       </div>
     </main>
+      <Footer />
+    </>
   );
 }
 

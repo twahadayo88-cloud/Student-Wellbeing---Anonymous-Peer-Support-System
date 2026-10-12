@@ -4,6 +4,8 @@ import { AlertTriangle, ShieldAlert, ChevronDown } from 'lucide-react';
 import api from '../services/api';
 import { toast } from 'react-hot-toast';
 import useAuth from '../hooks/useAuth';
+import Navbar from '../components/layout/Navbar';
+import Footer from '../components/layout/Footer';
 
 const CATEGORIES = [
   { value: 'harassment',       label: 'Harassment' },
@@ -204,7 +206,9 @@ const Complaints = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-rose-50 via-white to-indigo-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 px-4 py-8">
+    <>
+      <Navbar />
+      <div className="min-h-screen bg-gradient-to-br from-rose-50 via-white to-indigo-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 px-4 pt-28 pb-8">
       <div className="max-w-2xl mx-auto space-y-8">
         <div>
           <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white">Complaints</h1>
@@ -254,9 +258,10 @@ const Complaints = () => {
           Complaints are reviewed by faculty (Level 1) and escalated to Higher Authority (Level 2) as needed.
           False reports may result in account action.
         </p>
-      </div>
-    </div>
-  );
-};
-
-export default Complaints;
+            </div>
+          </div>
+            <Footer />
+          </>
+        );
+      };
+      export default Complaints;
