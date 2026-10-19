@@ -4,7 +4,8 @@ import { AlertTriangle, ShieldAlert, ChevronDown } from 'lucide-react';
 import api from '../services/api';
 import { toast } from 'react-hot-toast';
 import useAuth from '../hooks/useAuth';
-import Navbar from '../components/layout/Navbar';
+import Sidebar from '../components/layout/Sidebar';
+import PageHeader from '../components/layout/PageHeader';
 import Footer from '../components/layout/Footer';
 
 const CATEGORIES = [
@@ -17,18 +18,18 @@ const CATEGORIES = [
 ];
 
 const STATUS_BADGE = {
-  open:         { label: 'Open',          cls: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' },
-  under_review: { label: 'Under Review',  cls: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' },
-  escalated:    { label: 'Escalated',     cls: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' },
-  resolved:     { label: 'Resolved',      cls: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' },
-  rejected:     { label: 'Rejected',      cls: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400' },
-  dismissed:    { label: 'Dismissed',     cls: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400' },
+  open:         { label: 'Open',          cls: 'bg-amber-500/10 text-amber-500 border border-amber-500/20' },
+  under_review: { label: 'Under Review',  cls: 'bg-blue-500/10 text-blue-400 border border-blue-500/20' },
+  escalated:    { label: 'Escalated',     cls: 'bg-pink-500/10 text-pink-500 border border-pink-500/20' },
+  resolved:     { label: 'Resolved',      cls: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' },
+  rejected:     { label: 'Rejected',      cls: 'bg-surface-500/10 text-surface-400 border border-surface-500/20' },
+  dismissed:    { label: 'Dismissed',     cls: 'bg-surface-500/10 text-surface-400 border border-surface-500/20' },
 };
 
 const StatusBadge = ({ status }) => {
   const s = STATUS_BADGE[status] || STATUS_BADGE.open;
   return (
-    <span className={`inline-block text-xs font-semibold px-2.5 py-0.5 rounded-full ${s.cls}`}>
+    <span className={`inline-block text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded-full ${s.cls}`}>
       {s.label}
     </span>
   );
@@ -70,40 +71,40 @@ const SubmitForm = ({ onSubmitted }) => {
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Peer Anonymous ID <span className="text-gray-400 font-normal">(optional when reporting content)</span>
+        <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-gray-400 mb-1.5">
+          Peer Anonymous ID <span className="text-slate-400 dark:text-surface-400 font-normal lowercase">(optional when reporting content)</span>
         </label>
         <input
           type="text"
-          className="w-full rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          className="w-full rounded-xl border border-slate-300 dark:border-slate-800 bg-white dark:bg-[#09090e] text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-gray-500 px-4 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-pink-500"
           placeholder="e.g. PEER-9A3F2"
           value={anonymousId}
           onChange={e => setAnonymousId(e.target.value)}
         />
-        <p className="text-xs text-gray-400 mt-1">Find this in the peer&apos;s profile or chat header.</p>
+        <p className="text-[11px] text-surface-500 mt-1">Find this in the peer&apos;s profile or chat header.</p>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Evidence reference <span className="text-gray-400 font-normal">(optional; required if no peer ID)</span>
+        <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-gray-400 mb-1.5">
+          Evidence Reference <span className="text-slate-400 dark:text-surface-400 font-normal lowercase">(optional; required if no peer ID)</span>
         </label>
         <input
           type="text"
           maxLength={255}
-          className="w-full rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          placeholder="Message or post reference"
+          className="w-full rounded-xl border border-slate-300 dark:border-slate-800 bg-white dark:bg-[#09090e] text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-gray-500 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500"
+          placeholder="Message or post reference URL/ID"
           value={evidenceRef}
           onChange={e => setEvidenceRef(e.target.value)}
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Category <span className="text-red-500">*</span>
+        <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-gray-400 mb-1.5">
+          Category <span className="text-pink-500">*</span>
         </label>
         <div className="relative">
           <select
-            className="w-full rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-4 py-2.5 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            className="w-full rounded-xl border border-slate-300 dark:border-slate-800 bg-white dark:bg-[#09090e] text-slate-900 dark:text-white px-4 py-2.5 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-pink-500"
             value={category}
             onChange={e => setCategory(e.target.value)}
           >
@@ -112,32 +113,32 @@ const SubmitForm = ({ onSubmitted }) => {
               <option key={c.value} value={c.value}>{c.label}</option>
             ))}
           </select>
-          <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-gray-400 pointer-events-none" />
+          <ChevronDown className="absolute right-3.5 top-3 w-4 h-4 text-slate-400 dark:text-surface-400 pointer-events-none" />
         </div>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Description <span className="text-red-500">*</span>
-          <span className="text-gray-400 font-normal ml-1">(min 10 characters)</span>
+        <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-gray-400 mb-1.5">
+          Incident Details <span className="text-pink-500">*</span>
+          <span className="text-slate-400 dark:text-surface-500 font-normal lowercase ml-1">(min 10 characters)</span>
         </label>
         <textarea
           rows={4}
           maxLength={1000}
-          className="w-full rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          className="w-full rounded-xl border border-slate-300 dark:border-slate-800 bg-white dark:bg-[#09090e] text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-gray-500 px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-pink-500 leading-relaxed"
           placeholder="Describe the incident clearly and factually…"
           value={reason}
           onChange={e => setReason(e.target.value)}
         />
-        <p className="text-xs text-gray-400 text-right mt-1">{reason.length}/1000</p>
+        <p className="text-[11px] font-mono text-slate-500 dark:text-surface-500 text-right mt-1">{reason.length}/1000</p>
       </div>
 
       <button
         type="submit"
         disabled={submitting}
-        className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold text-sm transition active:scale-95"
+        className="btn-primary w-full py-3 rounded-2xl text-xs uppercase tracking-wider font-bold transition active:scale-95 disabled:opacity-50"
       >
-        {submitting ? 'Submitting…' : 'Submit Complaint'}
+        {submitting ? 'Submitting…' : 'Submit Confidential Report'}
       </button>
     </form>
   );
@@ -156,23 +157,23 @@ const MyComplaints = ({ refresh }) => {
       .finally(() => setLoading(false));
   }, [refresh]);
 
-  if (loading) return <div className="py-10 text-center text-gray-400 text-sm">Loading…</div>;
+  if (loading) return <div className="py-10 text-center text-slate-500 dark:text-surface-400 text-sm">Loading reports…</div>;
   if (!complaints.length) return (
-    <div className="py-10 text-center text-gray-400 text-sm">No complaints filed yet.</div>
+    <div className="py-10 text-center text-slate-500 dark:text-surface-400 text-sm">No complaints filed yet.</div>
   );
 
   return (
     <ul className="space-y-3">
       {complaints.map(c => (
-        <li key={c.id} className="bg-gray-50 dark:bg-gray-700/50 rounded-2xl p-4">
+        <li key={c.id} className="rounded-2xl p-4 bg-white dark:bg-[#111118] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-sm font-semibold text-gray-800 dark:text-white capitalize">
+            <span className="text-sm font-bold text-surface-900 dark:text-white capitalize">
               {c.category?.replace(/_/g, ' ')}
             </span>
             <StatusBadge status={c.status} />
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{c.reason}</p>
-          <p className="text-xs text-gray-400 mt-1">{new Date(c.created_at).toLocaleDateString()}</p>
+          <p className="text-xs text-slate-600 dark:text-surface-300 line-clamp-2 mt-1 leading-relaxed">{c.reason}</p>
+          <p className="text-[11px] font-mono text-slate-400 dark:text-surface-400 mt-2">{new Date(c.created_at).toLocaleDateString()}</p>
         </li>
       ))}
     </ul>
@@ -194,11 +195,12 @@ const Complaints = () => {
 
   if (!isStudent) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-950">
-        <div className="text-center p-10">
-          <AlertTriangle className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 dark:text-gray-400">
-            The complaint portal is for students. Faculty and admins use the role-based review portal.
+      <div className="flex items-center justify-center min-h-screen bg-slate-50 dark:bg-[#09090e]">
+        <div className="text-center p-10 glass-card max-w-md mx-auto bg-white dark:bg-[#111118] border border-slate-200 dark:border-slate-800">
+          <AlertTriangle className="w-12 h-12 text-pink-500 mx-auto mb-4" />
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Faculty &amp; Admin Review</h2>
+          <p className="text-slate-500 dark:text-surface-400 text-xs leading-relaxed">
+            The student complaint intake portal is restricted to students. Faculty and administrators can resolve reports in the Review Portal.
           </p>
         </div>
       </div>
@@ -207,25 +209,25 @@ const Complaints = () => {
 
   return (
     <>
-      <Navbar />
-      <div className="min-h-screen bg-gradient-to-br from-rose-50 via-white to-indigo-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 px-4 pt-28 pb-8">
-      <div className="max-w-2xl mx-auto space-y-8">
-        <div>
-          <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white">Complaints</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
-            Report inappropriate behaviour anonymously. Your identity is protected.
-          </p>
-        </div>
+      <Sidebar />
+      <div className="min-h-screen bg-slate-50 dark:bg-[#09090e] px-4 pt-6 pb-12 ml-16 sm:ml-64 transition-colors">
+      <div className="max-w-2xl mx-auto w-full space-y-7">
+        {/* PAGE HEADER (standardized) */}
+        <PageHeader
+          title={<>Trust &amp; Safety <span className="brand-text">Complaints</span></>}
+          subtitle="Trust-Based Secure Dashboard"
+          myId={user?.anonymous_id}
+        />
 
-        <div className="flex items-start gap-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-2xl px-5 py-4">
-          <ShieldAlert className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-          <p className="text-sm text-red-800 dark:text-red-300">
-            <strong>Genuine emergencies</strong> must be reported to real-world emergency services. PeerBridge does not handle emergencies.
+        <div className="flex items-start gap-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-2xl px-5 py-4">
+          <ShieldAlert className="w-5 h-5 text-rose-500 dark:text-rose-400 shrink-0 mt-0.5" />
+          <p className="text-xs text-rose-800 dark:text-rose-300 leading-relaxed">
+            <strong>Genuine emergencies</strong> must be reported immediately to university campus security or real-world emergency responders.
           </p>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 bg-gray-100 dark:bg-gray-800 rounded-2xl p-1">
+        <div className="flex gap-2 bg-slate-100 dark:bg-[#111118] border border-slate-200 dark:border-slate-800 rounded-2xl p-1.5">
           {[
             { key: 'submit', label: 'New Complaint' },
             { key: 'mine',   label: 'My Complaints' },
@@ -233,10 +235,10 @@ const Complaints = () => {
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all duration-200
+              className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all duration-200
                 ${tab === t.key
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                  ? 'btn-primary text-white shadow-md shadow-pink-500/10'
+                  : 'text-slate-600 dark:text-surface-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
             >
               {t.label}
@@ -245,7 +247,7 @@ const Complaints = () => {
         </div>
 
         {/* Content */}
-        <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+        <div className="glass-card-brand rounded-3xl p-6 sm:p-8 bg-white dark:bg-[#111118] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white">
           {tab === 'submit' ? (
             <SubmitForm onSubmitted={handleSubmitted} />
           ) : (
@@ -254,14 +256,13 @@ const Complaints = () => {
         </div>
 
         {/* Footer note */}
-        <p className="text-center text-xs text-gray-400 dark:text-gray-500 pb-4">
-          Complaints are reviewed by faculty (Level 1) and escalated to Higher Authority (Level 2) as needed.
-          False reports may result in account action.
+        <p className="text-center text-xs text-slate-500 dark:text-surface-500 pb-4">
+          Complaints are reviewed by designated faculty (Level 1) and escalated to Higher Authority (Level 2) if unresolved.
         </p>
-            </div>
-          </div>
-            <Footer />
-          </>
-        );
-      };
-      export default Complaints;
+      </div>
+      </div>
+      <Footer />
+    </>
+  );
+};
+export default Complaints;

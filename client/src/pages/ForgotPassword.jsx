@@ -35,39 +35,46 @@ export default function ForgotPassword() {
   return (
     <>
       <Navbar />
-      <div className="min-h-screen flex items-center justify-center pt-16 px-4">
-        {/* Background blobs matches Login design */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/4 right-1/4 w-72 h-72 bg-primary-400/10 rounded-full blur-3xl" />
-          <div className="absolute bottom-1/4 left-1/4 w-72 h-72 bg-accent-400/10 rounded-full blur-3xl" />
-        </div>
+      <div className="min-h-screen flex items-center justify-center pt-20 pb-12 px-4 relative overflow-hidden bg-slate-50 dark:bg-[#09090e] transition-colors">
+        {/* Decorative Orbs */}
+        <div className="orb orb-pink -top-20 -left-20 pointer-events-none" />
+        <div className="orb orb-amber top-1/2 -right-24 pointer-events-none" />
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="relative w-full max-w-md"
+          className="relative w-full max-w-md z-10"
         >
-          <div className="glass-card p-8">
+          <div className="glass-card-brand p-8 sm:p-10 shadow-2xl relative overflow-hidden">
             <div className="text-center mb-8">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white font-bold text-lg mx-auto mb-4">
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-extrabold text-xl mx-auto mb-4 shadow-lg shadow-pink-500/30"
+                style={{ background: 'linear-gradient(135deg, #ec4899, #ef4444, #f59e0b)' }}
+              >
                 PB
               </div>
-              <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Forgot Password</h1>
-              <p className="text-surface-500 dark:text-surface-400 text-sm mt-1">
-                Enter your registered email and we&apos;ll send you a reset code.
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                Forgot Password
+              </h1>
+              <p className="text-slate-500 dark:text-slate-400 text-sm mt-1.5 font-medium">
+                Enter your registered email and we&apos;ll send you a verification code
               </p>
             </div>
 
             {error && (
-              <div className="mb-4 p-3 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded-lg text-sm border border-red-200 dark:border-red-800">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="mb-5 p-3.5 bg-red-500/10 dark:bg-red-500/15 text-red-600 dark:text-red-400 rounded-xl text-xs border border-red-500/30 font-medium"
+              >
                 {error}
-              </div>
+              </motion.div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label htmlFor="forgot-email" className="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1.5">
+                <label htmlFor="forgot-email" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                   Email Address
                 </label>
                 <input
@@ -81,14 +88,18 @@ export default function ForgotPassword() {
                 />
               </div>
 
-              <button type="submit" className="btn-primary w-full" disabled={isLoading}>
+              <button
+                type="submit"
+                className="btn-primary w-full py-3 text-sm font-bold tracking-wide"
+                disabled={isLoading}
+              >
                 {isLoading ? 'Sending Code...' : 'Send OTP'}
               </button>
             </form>
 
-            <p className="text-center text-sm text-surface-500 dark:text-surface-400 mt-6">
+            <p className="text-center text-xs text-slate-500 dark:text-slate-400 mt-6 font-medium">
               Remember your password?{' '}
-              <Link to="/login" className="text-primary-600 dark:text-primary-400 font-medium hover:underline">
+              <Link to="/login" className="text-pink-600 dark:text-pink-400 font-semibold hover:underline">
                 Sign in
               </Link>
             </p>

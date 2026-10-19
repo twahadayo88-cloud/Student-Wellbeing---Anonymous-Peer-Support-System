@@ -59,7 +59,9 @@ async function createPost(user, input) {
   }
   assertSafeText(`${input.title}\n${input.body}`);
 
-  const safety = await contentSafety.analyzeContent(`${input.title}\n${input.body}`);
+  const safety = isOfficial
+    ? { severity: 'low', isFlagged: false, matchedTerms: [] }
+    : await contentSafety.analyzeContent(`${input.title}\n${input.body}`);
   const status = safety.severity === 'high' ? 'rejected' : safety.severity === 'medium' ? 'held' : 'published';
   const [result] = await query(
     `INSERT INTO notice_posts
@@ -91,16 +93,35 @@ async function createPost(user, input) {
 
 async function listPosts(user, filters = {}) {
   const params = [];
-  const conditions = ["p.status = 'published'", 'p.expires_at > NOW()'];
-  if (user.role === 'student') {
-    const [[profile]] = await query('SELECT department FROM profiles WHERE user_id = ?', [user.user_id]);
-    conditions.push('(p.is_official = 0 OR p.department = ?)');
-    params.push(profile?.department || '');
-  }
-  if (filters.category) {
+  const [[profile]] = await query('SELECT department FROM profiles WHERE user_id = ?', [user.user_id]);
+  const userDept = profile?.department || '';
+
+  // Base conditions: only published and not-expired posts
+  const conditions = ["p.status = 'published'", "(p.expires_at IS NULL OR p.expires_at > NOW())"];
+
+  if (filters.category === 'announcements') {
+    // Announcements are strictly restricted to the user's department!
+    conditions.push('p.category = "announcements"');
+    if (user.role === 'super_admin' || user.role === 'admin') {
+      if (filters.department) {
+        conditions.push('p.department = ?');
+        params.push(filters.department);
+      }
+    } else if (!userDept) {
+      // If user has no department, they cannot view department-specific announcements
+      conditions.push('1 = 0');
+    } else {
+      conditions.push('p.department = ?');
+      params.push(userDept);
+    }
+  } else if (filters.exclude_announcements === true || !filters.category) {
+    // Community Notice Board: strictly exclude announcements!
+    conditions.push('p.category != "announcements"');
+  } else if (filters.category) {
     conditions.push('p.category = ?');
     params.push(filters.category);
   }
+
   if (filters.search) {
     conditions.push('(p.title LIKE ? OR p.body LIKE ?)');
     params.push(`%${filters.search}%`, `%${filters.search}%`);

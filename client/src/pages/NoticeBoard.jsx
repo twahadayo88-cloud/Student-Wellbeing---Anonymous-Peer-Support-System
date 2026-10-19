@@ -5,14 +5,14 @@ import { toast } from 'react-hot-toast';
 import api from '../services/api';
 import useAuth from '../hooks/useAuth';
 import { useSocket } from '../context/SocketContext';
-import Navbar from '../components/layout/Navbar';
+import Sidebar from '../components/layout/Sidebar';
+import PageHeader from '../components/layout/PageHeader';
 import Footer from '../components/layout/Footer';
 
 const CATEGORIES = [
   { value: 'study_groups', label: 'Study Groups' },
   { value: 'lost_found', label: 'Lost & Found' },
   { value: 'events', label: 'Events' },
-  { value: 'announcements', label: 'Announcements' },
 ];
 
 const CATEGORY_LABELS = Object.fromEntries(CATEGORIES.map(category => [category.value, category.label]));
@@ -101,53 +101,52 @@ function NoticeCard({ post, userId, isStudent, isFaculty, clusterCount, onRefres
   };
 
   return (
-    <article className="overflow-hidden rounded-xl border border-surface-200 bg-white/80 dark:border-surface-800 dark:bg-surface-900/70">
-      <div className="space-y-4 p-5">
+    <article className="overflow-hidden rounded-2xl glass-card p-5 sm:p-6 transition-all hover:border-pink-500/30 hover:shadow-glow-pink">
+      <div className="space-y-4">
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800 dark:bg-teal-950/60 dark:text-teal-200">{CATEGORY_LABELS[post.category]}</span>
-            {post.is_official ? <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"><Megaphone className="h-3.5 w-3.5" /> Official</span> : null}
-            {post.is_flagged ? <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700 dark:bg-red-950/50 dark:text-red-300">Flagged</span> : null}
+            <span className="badge-active text-[10px] font-bold uppercase tracking-wider">{CATEGORY_LABELS[post.category]}</span>
+            {post.is_official ? <span className="badge-verified text-[10px] font-bold tracking-wider inline-flex items-center gap-1"><Megaphone className="h-3 w-3" /> Official</span> : null}
+            {post.is_flagged ? <span className="badge-error text-[10px] font-bold tracking-wider">Flagged</span> : null}
           </div>
-          <span className="text-xs text-surface-500">{new Date(post.created_at).toLocaleString()}</span>
+          <span className="text-xs text-slate-400 font-mono">{new Date(post.created_at).toLocaleString()}</span>
         </header>
 
         <div>
-          <h2 className="text-lg font-semibold text-surface-900 dark:text-white">{post.title}</h2>
-          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-surface-700 dark:text-surface-300">{post.body}</p>
+          <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight">{post.title}</h2>
+          <p className="mt-2 whitespace-pre-wrap text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-300">{post.body}</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-surface-500">
-          <span>By {post.author_anonymous_id || 'PeerBridge'}</span>
-          {post.location_name && <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{post.location_name}</span>}
-          {clusterKey && <span>{clusterCount} posts in this nearby cluster</span>}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-400 font-medium">
+          <span className="font-mono text-pink-500 font-bold">@{post.author_anonymous_id || 'PeerBridge'}</span>
+          {post.location_name && <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5 text-pink-500" />{post.location_name}</span>}
+          {clusterKey && <span>{clusterCount} in nearby cluster</span>}
           {post.distance_km !== null && post.distance_km !== undefined && <span>{Number(post.distance_km).toFixed(1)} km away</span>}
-          <span>{post.reports_count} reports</span>
           <span>Expires {new Date(post.expires_at).toLocaleDateString()}</span>
         </div>
 
         {isFaculty ? (
-          <div className="space-y-3 border-t border-surface-200 pt-4 dark:border-surface-700">
-            {post.ai_reason && <p className="text-xs text-surface-500">Review reason: {post.ai_reason}</p>}
-            {post.appeal_reason && <p className="text-sm text-amber-700 dark:text-amber-300">Appeal: {post.appeal_reason}</p>}
-            <textarea rows={2} maxLength={1000} value={reviewNote} onChange={event => setReviewNote(event.target.value)} placeholder="Optional review note" className="w-full rounded-lg border border-surface-200 bg-white p-3 text-sm dark:border-surface-700 dark:bg-surface-950" />
+          <div className="space-y-3 border-t border-slate-100 dark:border-white/5 pt-4">
+            {post.ai_reason && <p className="text-xs text-slate-400">Review reason: {post.ai_reason}</p>}
+            {post.appeal_reason && <p className="text-xs text-amber-500 font-medium">Appeal: {post.appeal_reason}</p>}
+            <textarea rows={2} maxLength={1000} value={reviewNote} onChange={event => setReviewNote(event.target.value)} placeholder="Optional review note" className="input-field w-full text-xs" />
             <div className="flex gap-2">
-              <button type="button" disabled={busy} onClick={() => review('publish')} className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white"><Check className="mr-1 inline h-4 w-4" /> Publish</button>
-              <button type="button" disabled={busy} onClick={() => review('reject')} className="rounded-lg border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 dark:border-red-900 dark:text-red-300"><X className="mr-1 inline h-4 w-4" /> Reject</button>
+              <button type="button" disabled={busy} onClick={() => review('publish')} className="btn-primary py-2 px-3.5 text-xs font-bold inline-flex items-center"><Check className="mr-1 h-3.5 w-3.5" /> Publish</button>
+              <button type="button" disabled={busy} onClick={() => review('reject')} className="btn-danger py-2 px-3.5 text-xs font-bold inline-flex items-center"><X className="mr-1 h-3.5 w-3.5" /> Reject</button>
             </div>
           </div>
         ) : (
-          <footer className="flex flex-wrap items-center gap-2 border-t border-surface-200 pt-4 dark:border-surface-700">
-            <button type="button" onClick={() => react('like')} className="rounded-lg px-3 py-2 text-sm text-surface-600 hover:bg-surface-100 dark:text-surface-300 dark:hover:bg-surface-800"><ThumbsUp className="mr-1 inline h-4 w-4" />{post.reaction_count}</button>
-            <button type="button" onClick={save} className="rounded-lg px-3 py-2 text-sm text-surface-600 hover:bg-surface-100 dark:text-surface-300 dark:hover:bg-surface-800"><Bookmark className={`mr-1 inline h-4 w-4 ${post.saved_by_me ? 'fill-current' : ''}`} />{post.save_count}</button>
-            {post.status && post.status !== 'published' && <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold capitalize text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">{post.status}</span>}
-            {post.status === 'published' && !isOwner && <button type="button" onClick={report} className="rounded-lg px-3 py-2 text-sm text-surface-500 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/40"><AlertTriangle className="mr-1 inline h-4 w-4" /> Report</button>}
-            {post.status === 'published' && isStudent && !isOwner && post.author_role === 'student' && !post.is_official && <button type="button" onClick={requestChat} className="rounded-lg px-3 py-2 text-sm text-teal-700 hover:bg-teal-50 dark:text-teal-300 dark:hover:bg-teal-950/40"><MessageCircle className="mr-1 inline h-4 w-4" /> Request chat</button>}
-            {post.status === 'published' && isOwner && <button type="button" onClick={extend} className="rounded-lg px-3 py-2 text-sm text-teal-700 hover:bg-teal-50 dark:text-teal-300 dark:hover:bg-teal-950/40">Extend 30 days</button>}
+          <footer className="flex flex-wrap items-center gap-2 border-t border-slate-100 dark:border-white/5 pt-4">
+            <button type="button" onClick={() => react('like')} className="btn-secondary py-1.5 px-3 text-xs font-bold inline-flex items-center text-slate-600 dark:text-slate-300 hover:text-pink-500"><ThumbsUp className="mr-1.5 h-3.5 w-3.5 text-pink-500" />{post.reaction_count}</button>
+            <button type="button" onClick={save} className="btn-secondary py-1.5 px-3 text-xs font-bold inline-flex items-center text-slate-600 dark:text-slate-300 hover:text-amber-500"><Bookmark className={`mr-1.5 h-3.5 w-3.5 ${post.saved_by_me ? 'fill-current text-amber-500' : 'text-slate-400'}`} />{post.save_count}</button>
+            {post.status && post.status !== 'published' && <span className="badge-pending text-xs">{post.status}</span>}
+            {post.status === 'published' && !isOwner && <button type="button" onClick={report} className="btn-ghost py-1.5 px-3 text-xs font-medium text-slate-400 hover:text-red-500 inline-flex items-center"><AlertTriangle className="mr-1 h-3.5 w-3.5" /> Report</button>}
+            {post.status === 'published' && isStudent && !isOwner && post.author_role === 'student' && !post.is_official && <button type="button" onClick={requestChat} className="btn-primary py-1.5 px-3 text-xs font-bold inline-flex items-center"><MessageCircle className="mr-1.5 h-3.5 w-3.5" /> Request chat</button>}
+            {post.status === 'published' && isOwner && <button type="button" onClick={extend} className="btn-secondary py-1.5 px-3 text-xs font-bold text-pink-500">Extend 30 days</button>}
             {isOwner && post.status === 'rejected' && post.appeal_available ? (
               <div className="flex min-w-full gap-2 pt-2">
-                <input value={appealReason} onChange={event => setAppealReason(event.target.value)} placeholder="Appeal reason (10+ characters)" maxLength={1000} className="min-w-0 flex-1 rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm dark:border-surface-700 dark:bg-surface-950" />
-                <button type="button" onClick={appeal} className="rounded-lg border border-amber-300 px-3 py-2 text-sm font-semibold text-amber-800 dark:border-amber-900 dark:text-amber-200">Appeal</button>
+                <input value={appealReason} onChange={event => setAppealReason(event.target.value)} placeholder="Appeal reason (10+ characters)" maxLength={1000} className="input-field flex-1 text-xs" />
+                <button type="button" onClick={appeal} className="btn-primary py-1.5 px-3 text-xs font-bold">Appeal</button>
               </div>
             ) : null}
           </footer>
@@ -211,10 +210,10 @@ const NoticeBoard = () => {
         ? await api.get('/notices/mine')
         : requestedTab === 'review' && isFaculty
           ? await api.get('/notices/faculty/review')
-          : await api.get('/notices', { params: appliedFilters });
+          : await api.get('/notices', { params: { ...appliedFilters, exclude_announcements: true } });
       setPosts(response.data.data || []);
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Could not load notice posts.');
+      toast.error(error.response?.data?.message || 'Could not load community posts.');
       setPosts([]);
     } finally {
       setLoading(false);
@@ -256,12 +255,12 @@ const NoticeBoard = () => {
     setBusy(true);
     try {
       await api.post('/notices', form);
-      toast.success('Post submitted. Clean posts publish immediately; flagged posts go to review.');
+      toast.success('Community post submitted.');
       setForm({ category: '', title: '', body: '', location_name: '', latitude: null, longitude: null, expiry_days: 30 });
       setTab('mine');
       await load('mine');
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Could not submit post.');
+      toast.error(error.response?.data?.message || 'Could not submit community post.');
     } finally {
       setBusy(false);
     }
@@ -275,55 +274,147 @@ const NoticeBoard = () => {
   });
 
   const tabs = [
-    { id: 'feed', label: 'Board' },
+    { id: 'feed', label: 'Community Board' },
     ...(isStudent || isFaculty ? [{ id: 'mine', label: 'My Posts' }] : []),
-    { id: 'create', label: isFaculty ? 'Official Announcement' : 'New Post' },
+    { id: 'create', label: 'New Community Post' },
     ...(isFaculty ? [{ id: 'review', label: 'Review Queue' }] : []),
   ];
 
   return (
     <>
-      <Navbar />
-      <main className="min-h-screen px-4 pb-12 pt-24 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-5xl space-y-7">
-        <header className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-emerald-700">Campus community</p>
-            <h1 className="mt-1 text-3xl font-bold text-surface-900 dark:text-white">Community Notice Board</h1>
-            <p className="mt-1 text-sm text-surface-500">Posts publish after automated checks; reported content is reviewed by Faculty.</p>
-          </div>
-          <button type="button" onClick={() => load()} disabled={loading} className="btn-secondary inline-flex items-center gap-2"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh</button>
-        </header>
+      <Sidebar />
+      <main className="min-h-screen ml-16 sm:ml-64 px-4 pb-16 pt-6 sm:px-6 lg:px-8 bg-slate-50 dark:bg-[#09090e] transition-colors">
+      <div className="mx-auto max-w-5xl w-full space-y-7">
+        {/* PAGE HEADER (standardized) */}
+        <PageHeader
+          tone="light"
+          title="Community Notice Board"
+          subtitle="Trust-Based Secure Dashboard"
+          myId={user?.anonymous_id}
+          actions={
+            <button
+              type="button"
+              onClick={() => load()}
+              disabled={loading}
+              className="btn-secondary py-2.5 px-4 text-xs font-bold inline-flex items-center gap-2"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+            </button>
+          }
+        />
 
-        <nav className="flex gap-1 overflow-x-auto border-b border-surface-200 dark:border-surface-800">
-          {tabs.map(item => <button key={item.id} type="button" onClick={() => setTab(item.id)} className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-semibold ${tab === item.id ? 'border-emerald-600 text-emerald-700 dark:text-emerald-300' : 'border-transparent text-surface-500'}`}>{item.label}</button>)}
+        <nav className="flex gap-2 overflow-x-auto pb-1 border-b border-slate-200/80 dark:border-white/10">
+          {tabs.map(item => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setTab(item.id)}
+              className={`whitespace-nowrap px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                tab === item.id
+                  ? 'btn-primary text-white shadow-md shadow-pink-500/20'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
         </nav>
 
         {tab === 'feed' && (
-          <div className="flex flex-wrap gap-2">
-            <label className="relative min-w-[220px] flex-1"><Search className="absolute left-3 top-3 h-4 w-4 text-surface-400" /><input value={filters.search} onChange={event => setFilters(current => ({ ...current, search: event.target.value }))} placeholder="Search posts" className="w-full rounded-lg border border-surface-200 bg-white py-2.5 pl-9 pr-3 text-sm dark:border-surface-700 dark:bg-surface-900" /></label>
-            <select value={filters.category} onChange={event => setFilters(current => ({ ...current, category: event.target.value }))} className="rounded-lg border border-surface-200 bg-white px-3 py-2.5 text-sm dark:border-surface-700 dark:bg-surface-900"><option value="">All categories</option>{CATEGORIES.map(category => <option key={category.value} value={category.value}>{category.label}</option>)}</select>
-            <button type="button" onClick={() => locate('filter')} className="btn-secondary inline-flex items-center gap-2"><Compass className="h-4 w-4" /> Near me</button>
-            {filters.latitude != null && <button type="button" onClick={() => {
-              const cleared = { ...filters, latitude: null, longitude: null };
-              setFilters(cleared);
-              setAppliedFilters(cleared);
-              setTab('feed');
-            }} className="btn-secondary">Clear location</button>}
-            <button type="button" onClick={() => { setAppliedFilters(filters); setTab('feed'); }} className="btn-primary">Apply</button>
+          <div className="flex flex-wrap gap-2.5 glass-card p-3 rounded-2xl border border-white/10">
+            <div className="relative min-w-[220px] flex-1">
+              <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+              <input
+                value={filters.search}
+                onChange={event => setFilters(current => ({ ...current, search: event.target.value }))}
+                placeholder="Search community posts..."
+                className="input-field w-full pl-9 py-2 text-xs"
+              />
+            </div>
+            <select
+              value={filters.category}
+              onChange={event => setFilters(current => ({ ...current, category: event.target.value }))}
+              className="input-field py-2 text-xs"
+            >
+              <option value="">All categories</option>
+              {CATEGORIES.map(category => <option key={category.value} value={category.value}>{category.label}</option>)}
+            </select>
+            <button type="button" onClick={() => locate('filter')} className="btn-secondary py-2 px-3.5 text-xs font-bold inline-flex items-center gap-1.5">
+              <Compass className="h-3.5 w-3.5 text-pink-500" /> Near me
+            </button>
+            {filters.latitude != null && (
+              <button
+                type="button"
+                onClick={() => {
+                  const cleared = { ...filters, latitude: null, longitude: null };
+                  setFilters(cleared);
+                  setAppliedFilters(cleared);
+                  setTab('feed');
+                }}
+                className="btn-ghost py-2 px-3 text-xs font-bold text-slate-400"
+              >
+                Clear location
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => { setAppliedFilters(filters); setTab('feed'); }}
+              className="btn-primary py-2 px-4 text-xs font-bold"
+            >
+              Apply
+            </button>
           </div>
         )}
 
         {tab === 'create' ? (
-          <form onSubmit={submitPost} className="grid grid-cols-1 gap-4 rounded-xl border border-surface-200 bg-white/70 p-5 md:grid-cols-2 dark:border-surface-800 dark:bg-surface-900/50">
-            <label className="text-sm font-medium">Category<select name="category" value={form.category} onChange={updateForm} required className="mt-1 w-full rounded-lg border border-surface-200 bg-white px-3 py-2.5 dark:border-surface-700 dark:bg-surface-950"><option value="">Select required category</option>{CATEGORIES.filter(category => category.value !== 'announcements' || !isStudent).map(category => <option key={category.value} value={category.value}>{category.label}</option>)}</select></label>
-            <label className="text-sm font-medium">Expires in<select name="expiry_days" value={form.expiry_days} onChange={updateForm} className="mt-1 w-full rounded-lg border border-surface-200 bg-white px-3 py-2.5 dark:border-surface-700 dark:bg-surface-950"><option value={7}>7 days</option><option value={30}>30 days</option><option value={60}>60 days</option><option value={90}>90 days</option></select></label>
-            <label className="text-sm font-medium md:col-span-2">Title<input name="title" required maxLength={120} value={form.title} onChange={updateForm} className="mt-1 w-full rounded-lg border border-surface-200 bg-white px-3 py-2.5 dark:border-surface-700 dark:bg-surface-950" /></label>
-            <label className="text-sm font-medium md:col-span-2">Post<textarea name="body" required minLength={10} maxLength={2000} rows={5} value={form.body} onChange={updateForm} className="mt-1 w-full rounded-lg border border-surface-200 bg-white px-3 py-2.5 dark:border-surface-700 dark:bg-surface-950" /></label>
-            <label className="text-sm font-medium">Location name (optional)<input name="location_name" maxLength={100} value={form.location_name} onChange={updateForm} placeholder="Campus building or area" className="mt-1 w-full rounded-lg border border-surface-200 bg-white px-3 py-2.5 dark:border-surface-700 dark:bg-surface-950" /></label>
-            <div className="flex items-end"><button type="button" onClick={() => locate('form')} className="btn-secondary inline-flex items-center gap-2"><MapPin className="h-4 w-4" /> Add approximate location</button></div>
-            {form.latitude != null && <p className="text-xs text-surface-500 md:col-span-2">Approximate coordinates added; public locations are rounded to a nearby cluster.</p>}
-            <button type="submit" disabled={busy} className="btn-primary inline-flex items-center justify-center gap-2 md:col-span-2"><Send className="h-4 w-4" /> {busy ? 'Submitting…' : isFaculty && form.category === 'announcements' ? 'Publish Official Announcement' : 'Submit Post'}</button>
+          <form onSubmit={submitPost} className="grid grid-cols-1 gap-4.5 rounded-2xl glass-card-brand p-6 sm:p-7 md:grid-cols-2 border border-white/10 shadow-xl">
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+              Category
+              <select name="category" value={form.category} onChange={updateForm} required className="input-field mt-1.5 w-full text-xs">
+                <option value="">Select required category</option>
+                {CATEGORIES.filter(category => category.value !== 'announcements' || !isStudent).map(category => (
+                  <option key={category.value} value={category.value}>{category.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+              Expires in
+              <select name="expiry_days" value={form.expiry_days} onChange={updateForm} className="input-field mt-1.5 w-full text-xs">
+                <option value={7}>7 days</option>
+                <option value={30}>30 days</option>
+                <option value={60}>60 days</option>
+                <option value={90}>90 days</option>
+              </select>
+            </label>
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider md:col-span-2">
+              Title
+              <input name="title" required maxLength={120} value={form.title} onChange={updateForm} placeholder="Brief subject header" className="input-field mt-1.5 w-full text-xs" />
+            </label>
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider md:col-span-2">
+              Post Content
+              <textarea name="body" required minLength={10} maxLength={2000} rows={5} value={form.body} onChange={updateForm} placeholder="Details about your notice..." className="input-field mt-1.5 w-full text-xs resize-none" />
+            </label>
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+              Location name (optional)
+              <input name="location_name" maxLength={100} value={form.location_name} onChange={updateForm} placeholder="Campus building or area" className="input-field mt-1.5 w-full text-xs" />
+            </label>
+            <div className="flex items-end">
+              <button type="button" onClick={() => locate('form')} className="btn-secondary py-2.5 px-4 text-xs font-bold w-full inline-flex items-center justify-center gap-2">
+                <MapPin className="h-3.5 w-3.5 text-pink-500" /> Add approximate location
+              </button>
+            </div>
+            {form.latitude != null && (
+              <p className="text-[11px] text-slate-400 md:col-span-2 font-mono">
+                * Approximate coordinates added; public locations rounded to nearby clusters for privacy.
+              </p>
+            )}
+            <button
+              type="submit"
+              disabled={busy}
+              className="btn-primary inline-flex items-center justify-center gap-2 md:col-span-2 py-3 text-xs font-bold shadow-lg shadow-pink-500/20"
+            >
+              <Send className="h-4 w-4" /> {busy ? 'Submitting…' : 'Submit Community Post'}
+            </button>
           </form>
         ) : tab === 'feed' || tab === 'mine' || tab === 'review' ? (
           loading ? <div className="rounded-xl border border-surface-200 p-12 text-center text-surface-500 dark:border-surface-800">Loading posts…</div> : posts.length ? (

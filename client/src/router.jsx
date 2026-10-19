@@ -17,6 +17,7 @@ import Complaints from './pages/Complaints';
 import ComplaintReview from './pages/ComplaintReview';
 import ResourceLibrary from './pages/ResourceLibrary';
 import NoticeBoard from './pages/NoticeBoard';
+import Announcements from './pages/Announcements';
 import PrivateRoute from './components/auth/PrivateRoute';
 
 /**
@@ -38,7 +39,7 @@ function AppRouter() {
       {/* Protected Routes */}
       <Route path="/dashboard" element={<PrivateRoute roles={['student', 'faculty', 'admin', 'super_admin']}><PageWrapper><Dashboard /></PageWrapper></PrivateRoute>} />
       <Route path="/profile" element={<PrivateRoute><PageWrapper><Profile /></PageWrapper></PrivateRoute>} />
-      <Route path="/chat" element={<PrivateRoute roles={['student', 'faculty', 'admin', 'super_admin']}><PageWrapper><Chat /></PageWrapper></PrivateRoute>} />
+      <Route path="/chat" element={<PrivateRoute roles={['student']}><PageWrapper><Chat /></PageWrapper></PrivateRoute>} />
       <Route 
         path="/academic" 
         element={
@@ -84,6 +85,14 @@ function AppRouter() {
         element={
           <PrivateRoute roles={['student', 'faculty']}>
             <PageWrapper><ResourceLibrary /></PageWrapper>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/announcements"
+        element={
+          <PrivateRoute roles={['student', 'faculty', 'admin', 'super_admin']}>
+            <PageWrapper><Announcements /></PageWrapper>
           </PrivateRoute>
         }
       />

@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, Filter, BookOpen, Users, Star, GraduationCap, CheckCircle } from 'lucide-react';
+import { Plus, Search, Filter, BookOpen, Users, Star, GraduationCap, CheckCircle, ArrowLeft } from 'lucide-react';
+import Sidebar from '../components/layout/Sidebar';
+import PageHeader from '../components/layout/PageHeader';
+import Footer from '../components/layout/Footer';
 import RequestCard from '../components/academic/RequestCard';
 import PostRequestModal from '../components/academic/PostRequestModal';
 import RequestDetailModal from '../components/academic/RequestDetailModal';
@@ -23,7 +27,7 @@ const AcademicBoard = () => {
   const [isHelper, setIsHelper] = useState(false);
 
   const subjects = [
-    'Computer Science', 'Mathematics', 'Physics', 'Biology', 
+    'Computer Science', 'Mathematics', 'Physics', 'Biology',
     'Chemistry', 'Economics', 'Psychology', 'Literature', 'History'
   ];
 
@@ -42,7 +46,7 @@ const AcademicBoard = () => {
     };
 
     const onRequestUpdated = (data) => {
-      setRequests(prev => prev.map(req => 
+      setRequests(prev => prev.map(req =>
         req.id === data.request_id ? { ...req, status: data.status } : req
       ));
     };
@@ -130,137 +134,169 @@ const AcademicBoard = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Header section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 space-y-4 md:space-y-0">
-        <div>
-          <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white flex items-center">
-            <GraduationCap className="w-10 h-10 mr-3 text-indigo-600" />
-            Academic Support Board
-          </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
-            Anonymous peer-to-peer academic assistance and mentorship.
-          </p>
-        </div>
-
-        <div className="flex items-center space-x-3">
-          {user?.role === 'faculty' && (
-            <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-              <button
-                onClick={() => setActiveTab('board')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'board' ? 'bg-white dark:bg-gray-700 shadow-sm text-indigo-600' : 'text-gray-500'}`}
-              >
-                Board
-              </button>
-              <button
-                onClick={() => setActiveTab('trends')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'trends' ? 'bg-white dark:bg-gray-700 shadow-sm text-indigo-600' : 'text-gray-500'}`}
-              >
-                Trends
-              </button>
+    <>
+      <Sidebar />
+      <main className="min-h-screen ml-16 sm:ml-64 px-4 pb-16 pt-6 sm:px-6 lg:px-8 relative">
+        <div className="max-w-5xl mx-auto w-full">
+        {/* Back navigation */}
+        <div className="mb-2">
+          <Link
+            to="/dashboard"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-pink-500 dark:hover:text-pink-400 transition-colors group"
+          >
+            <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200/60 dark:border-white/10 flex items-center justify-center group-hover:border-pink-500/30 transition-colors">
+              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
             </div>
-          )}
-          
-          {user?.role !== 'faculty' && (
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold flex items-center transition-all shadow-lg shadow-indigo-200 dark:shadow-none"
-            >
-              <Plus className="w-5 h-5 mr-2" />
-              Ask for Help
-            </button>
-          )}
+            <span>Back to Dashboard</span>
+          </Link>
         </div>
-      </div>
 
-      {activeTab === 'board' ? (
-        <>
-          {/* Filters & Actions */}
-          <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800 mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search subject..."
-                  className="pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 focus:ring-indigo-500 w-full md:w-64"
-                  onChange={(e) => setFilterSubject(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && fetchRequests()}
-                />
+        {/* PAGE HEADER (standardized) */}
+        <PageHeader
+          title={
+            <span className="flex items-center">
+              <div
+                className="w-10 h-10 rounded-xl mr-3 flex items-center justify-center text-white shadow-md shadow-pink-500/20 shrink-0"
+                style={{ background: 'linear-gradient(135deg, #ec4899, #ef4444, #f59e0b)' }}
+              >
+                <GraduationCap className="w-6 h-6" />
               </div>
-              <select 
-                className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 outline-none focus:ring-2 focus:ring-indigo-500"
-                value={filterSubject}
-                onChange={(e) => setFilterSubject(e.target.value)}
-              >
-                <option value="">All Subjects</option>
-                {subjects.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-
-            <div className="flex items-center space-x-4">
-              {!isHelper ? (
-                <button
-                  onClick={handleRegisterHelper}
-                  className="flex items-center space-x-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 px-4 py-2 rounded-lg transition-colors font-medium"
-                >
-                  <Star className="w-4 h-4" />
-                  <span>Become a Helper</span>
-                </button>
-              ) : (
-                <div className="flex items-center space-x-2 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-4 py-2 rounded-lg">
-                  <CheckCircle className="w-4 h-4" />
-                  <span className="text-sm font-bold uppercase tracking-tight">Active Helper</span>
+              Academic Support Board
+            </span>
+          }
+          subtitle="Trust-Based Secure Dashboard"
+          myId={user?.anonymous_id}
+          actions={
+            <>
+              {user?.role === 'faculty' && (
+                <div className="flex bg-slate-100/80 dark:bg-white/[0.04] border border-slate-200/60 dark:border-white/10 rounded-xl p-1">
+                  <button
+                    onClick={() => setActiveTab('board')}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                      activeTab === 'board'
+                        ? 'btn-primary text-white'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                    }`}
+                  >
+                    Board
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('trends')}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                      activeTab === 'trends'
+                        ? 'btn-primary text-white'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                    }`}
+                  >
+                    Trends
+                  </button>
                 </div>
               )}
-            </div>
-          </div>
 
-          {/* Grid */}
-          {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="h-64 bg-gray-100 dark:bg-gray-800 animate-pulse rounded-2xl" />
-              ))}
-            </div>
-          ) : requests.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {requests.map((request) => (
-                <RequestCard 
-                  key={request.id} 
-                  request={request} 
-                  onOfferHelp={handleOfferHelp}
-                  onViewDetail={(r) => setSelectedRequest(r)}
-                  isHelper={isHelper}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-20 bg-gray-50 dark:bg-gray-900/30 rounded-3xl">
-              <BookOpen className="w-16 h-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-bold text-gray-700 dark:text-gray-300">No help requests found</h3>
-              <p className="text-gray-500">Be the first to ask or try a different filter.</p>
-            </div>
-          )}
-        </>
-      ) : (
-        <FacultyTrends data={trends} />
-      )}
+              {user?.role !== 'faculty' && (
+                <button
+                  onClick={() => setIsModalOpen(true)}
+                  className="btn-primary px-5 py-2.5 rounded-xl font-bold text-xs flex items-center shadow-lg shadow-pink-500/20"
+                >
+                  <Plus className="w-4 h-4 mr-1.5" />
+                  Ask for Help
+                </button>
+              )}
+            </>
+          }
+        />
 
-      <PostRequestModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSubmit={handlePostRequest}
-      />
+        {activeTab === 'board' ? (
+          <>
+            {/* Filters & Actions */}
+            <div className="glass-card rounded-2xl p-4 sm:p-5 mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 border border-white/10">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search subject..."
+                    className="input-field pl-9 py-2 text-xs w-full md:w-64"
+                    onChange={(e) => setFilterSubject(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && fetchRequests()}
+                  />
+                </div>
+                <select 
+                  className="input-field py-2 text-xs"
+                  value={filterSubject}
+                  onChange={(e) => setFilterSubject(e.target.value)}
+                >
+                  <option value="">All Subjects</option>
+                  {subjects.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
 
-      <RequestDetailModal
-        isOpen={!!selectedRequest}
-        onClose={() => setSelectedRequest(null)}
-        request={selectedRequest}
-        onOfferHelp={handleOfferHelp}
-        isHelper={isHelper}
-      />
-    </div>
+              <div className="flex items-center space-x-3">
+                {!isHelper ? (
+                  <button
+                    onClick={handleRegisterHelper}
+                    className="flex items-center space-x-2 text-pink-600 dark:text-pink-400 hover:bg-pink-500/10 px-4 py-2 rounded-xl transition-colors text-xs font-bold border border-pink-500/20"
+                  >
+                    <Star className="w-4 h-4" />
+                    <span>Become a Helper</span>
+                  </button>
+                ) : (
+                  <div className="flex items-center space-x-2 text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-1.5 rounded-xl">
+                    <CheckCircle className="w-4 h-4" />
+                    <span className="text-xs font-bold uppercase tracking-wide">Active Helper</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Grid */}
+            {isLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[1, 2, 3, 4, 5, 6].map(i => (
+                  <div key={i} className="h-64 glass-card animate-pulse rounded-2xl" />
+                ))}
+              </div>
+            ) : requests.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {requests.map((request) => (
+                  <RequestCard 
+                    key={request.id} 
+                    request={request} 
+                    onOfferHelp={handleOfferHelp}
+                    onViewDetail={(r) => setSelectedRequest(r)}
+                    isHelper={isHelper}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-20 glass-card rounded-3xl border border-white/10">
+                <BookOpen className="w-14 h-14 text-pink-500/40 mx-auto mb-3" />
+                <h3 className="text-base font-bold text-slate-700 dark:text-slate-200">No help requests found</h3>
+                <p className="text-xs text-slate-400 mt-1">Be the first to ask or choose a different subject filter.</p>
+              </div>
+            )}
+          </>
+        ) : (
+          <FacultyTrends data={trends} />
+        )}
+
+        <PostRequestModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSubmit={handlePostRequest}
+        />
+
+        <RequestDetailModal
+          isOpen={!!selectedRequest}
+          onClose={() => setSelectedRequest(null)}
+          request={selectedRequest}
+          onOfferHelp={handleOfferHelp}
+          isHelper={isHelper}
+        />
+        </div>
+      </main>
+      <Footer />
+    </>
   );
 };
 

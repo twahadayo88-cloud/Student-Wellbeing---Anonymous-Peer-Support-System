@@ -377,19 +377,7 @@ Run from the workspace root:
 
 ---
 
-## 🐞 Known Issues & Next Steps
 
-- Reconcile SOS service/socket/admin column names and enum values with `sos_records`.
-- Fix mood service `notes` versus schema `note`, then mount the mood routes and add a client screen.
-- Create and migrate `moderation_queue`, `notifications`, `trust_score_components`, `anonymous_id_history`, and `chat_messages` consistently.
-- Make migrations idempotent and provide one complete clean-install schema.
-- Replace the rejecting HTTP message stub or document Socket.io as the only supported send path in the client contract.
-- Replace the client leaderboard fallback with a tested live-data state and handle API failures visibly.
-- Add expired-OTP cleanup and remove or migrate cleanup references to undefined legacy tables.
-- Align the client role guards with the backend role enum.
-- Current validation: `npm run build --prefix client` passes, with Browserslist and large-bundle warnings. `npm run lint --prefix server` fails with 19 errors and 98 warnings; `npm run lint --prefix client` fails with 567 errors and 349 warnings, including unused code, missing prop validation, hook dependency warnings, and unescaped JSX entities.
-
-This README is a current-state audit, not a claim that every planned safety or wellbeing feature is production-ready.
 
 ---
 

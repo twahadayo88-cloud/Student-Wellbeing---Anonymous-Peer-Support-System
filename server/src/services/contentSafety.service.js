@@ -105,11 +105,13 @@ async function queryAiModel(text) {
 }
 
 /**
- * Checks text against abusive keywords and the local sklearn AI model service.
+ * Checks text against abusive keywords and optionally the local sklearn AI model service.
+ * AI model is used strictly when options.useAi is explicitly set to true.
  * @param {string} text
+ * @param {{ useAi?: boolean }} [options]
  * @returns {Promise<{isFlagged: boolean, severity: 'low'|'medium'|'high', matchedTerms: string[], sentimentScore: number}>}
  */
-async function analyzeContent(text) {
+async function analyzeContent(text, options = { useAi: false }) {
   const content = typeof text === 'string' ? text : '';
   if (!content.trim()) {
     return { isFlagged: false, severity: 'low', matchedTerms: [], sentimentScore: 0 };
@@ -138,23 +140,26 @@ async function analyzeContent(text) {
   let severity = 'low';
   let sentimentScore = 0;
 
-  const aiResult = await queryAiModel(content);
-  if (aiResult) {
-    // Extract probability score correctly from API
-    sentimentScore = typeof aiResult.abusive_probability === 'number'
-      ? aiResult.abusive_probability
-      : (typeof aiResult.probability === 'number' ? aiResult.probability : 0);
+  // AI model is only queried if explicitly enabled (e.g. for student chat requests, messages, academic board)
+  if (options && options.useAi === true) {
+    const aiResult = await queryAiModel(content);
+    if (aiResult) {
+      // Extract probability score correctly from API
+      sentimentScore = typeof aiResult.abusive_probability === 'number'
+        ? aiResult.abusive_probability
+        : (typeof aiResult.probability === 'number' ? aiResult.probability : 0);
 
-    // AI Flag condition checking all possible fields
-    const isAiFlagged = aiResult.is_flagged === true ||
-      aiResult.is_abusive === true ||
-      aiResult.category === 0 ||
-      sentimentScore >= (aiResult.threshold || 0.7);
+      // AI Flag condition checking all possible fields
+      const isAiFlagged = aiResult.is_flagged === true ||
+        aiResult.is_abusive === true ||
+        aiResult.category === 0 ||
+        sentimentScore >= (aiResult.threshold || 0.7);
 
-    if (isAiFlagged) {
-      isFlagged = true;
-      if (!matchedTerms.includes('ai_flag_sklearn')) {
-        matchedTerms.push('ai_flag_sklearn');
+      if (isAiFlagged) {
+        isFlagged = true;
+        if (!matchedTerms.includes('ai_flag_sklearn')) {
+          matchedTerms.push('ai_flag_sklearn');
+        }
       }
     }
   }

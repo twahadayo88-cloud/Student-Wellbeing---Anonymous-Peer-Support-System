@@ -3,6 +3,7 @@ const path = require('path');
 const mysql = require('mysql2/promise');
 const env = require('../config/env.config');
 const logger = require('../utils/logger');
+const { getMoodSubjectId } = require('../modules/mood/moodIdentity');
 
 const REQUIRED_TABLES = [
   'users', 'profiles', 'anonymous_id_map', 'chat_requests', 'feedback', 
@@ -163,6 +164,8 @@ async function applyMigrations() {
         reviewed_by INT NULL,
         reviewed_at DATETIME NULL,
         review_note TEXT NULL,
+        relevance_score TINYINT NULL,
+        quality_score TINYINT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (uploader_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -171,6 +174,16 @@ async function applyMigrations() {
         INDEX idx_resources_filters (subject, semester, category)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
+    const [resourceCols] = await connection.query('SHOW COLUMNS FROM resources');
+    const resourceColNames = resourceCols.map(column => column.Field);
+    for (const [column, definition] of [
+      ['relevance_score', 'TINYINT NULL'],
+      ['quality_score', 'TINYINT NULL'],
+    ]) {
+      if (!resourceColNames.includes(column)) {
+        await connection.query(`ALTER TABLE resources ADD COLUMN ${column} ${definition}`);
+      }
+    }
 
     await connection.query(`
       CREATE TABLE IF NOT EXISTS resource_reviews (
@@ -322,7 +335,103 @@ async function applyMigrations() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // 1. Generate Backup Before Schema Changes
+    // Pseudonymize mood data before generating a backup so new backups do not
+    // copy direct account IDs from the legacy mood table.
+    const [initialMoodCols] = await connection.query('SHOW COLUMNS FROM mood_entries');
+    let moodColNames = initialMoodCols.map(column => column.Field);
+    if (!moodColNames.includes('notes') && moodColNames.includes('note')) {
+      await connection.query('ALTER TABLE mood_entries CHANGE COLUMN note notes TEXT NULL');
+      moodColNames = moodColNames.map(column => column === 'note' ? 'notes' : column);
+    } else if (!moodColNames.includes('notes')) {
+      await connection.query('ALTER TABLE mood_entries ADD COLUMN notes TEXT NULL');
+      moodColNames.push('notes');
+    }
+    if (!moodColNames.includes('consecutive_low_count')) {
+      await connection.query('ALTER TABLE mood_entries ADD COLUMN consecutive_low_count INT NOT NULL DEFAULT 0');
+      moodColNames.push('consecutive_low_count');
+    }
+    if (!moodColNames.includes('mood_subject_id')) {
+      await connection.query('ALTER TABLE mood_entries ADD COLUMN mood_subject_id CHAR(64) NULL');
+      moodColNames.push('mood_subject_id');
+    }
+    if (!moodColNames.includes('department')) {
+      await connection.query('ALTER TABLE mood_entries ADD COLUMN department VARCHAR(100) NULL');
+      moodColNames.push('department');
+    }
+    for (const legacyColumn of ['anonymous_id', 'distress_flag', 'counselor_alerted']) {
+      if (moodColNames.includes(legacyColumn)) {
+        const safeColumn = legacyColumn.replace(/`/g, '``');
+        await connection.query(`ALTER TABLE mood_entries DROP COLUMN \`${safeColumn}\``);
+      }
+    }
+
+    if (moodColNames.includes('user_id')) {
+      await connection.query(`
+        DELETE m FROM mood_entries m
+        LEFT JOIN profiles p ON p.user_id = m.user_id
+        WHERE p.user_id IS NULL OR COALESCE(p.consent_mood_tracking, 0) <> 1
+      `);
+      const [legacyMoodRows] = await connection.query(`
+        SELECT m.id, m.user_id, p.department
+        FROM mood_entries m
+        LEFT JOIN profiles p ON p.user_id = m.user_id
+        WHERE m.mood_subject_id IS NULL
+      `);
+      for (const entry of legacyMoodRows) {
+        await connection.query(
+          'UPDATE mood_entries SET mood_subject_id = ?, department = ? WHERE id = ?',
+          [getMoodSubjectId(entry.user_id), entry.department || null, entry.id]
+        );
+      }
+
+      const [unmappedMoodRows] = await connection.query(
+        'SELECT id FROM mood_entries WHERE mood_subject_id IS NULL LIMIT 1'
+      );
+      if (unmappedMoodRows.length) {
+        throw new Error('Cannot remove mood_entries.user_id while mood records remain unmapped.');
+      }
+
+      const [moodConstraints] = await connection.query(
+        `SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mood_entries'
+           AND COLUMN_NAME = 'user_id' AND REFERENCED_TABLE_NAME IS NOT NULL`
+      );
+      for (const constraint of moodConstraints) {
+        const name = constraint.CONSTRAINT_NAME.replace(/`/g, '``');
+        await connection.query(`ALTER TABLE mood_entries DROP FOREIGN KEY \`${name}\``);
+      }
+
+      const [moodIndexes] = await connection.query('SHOW INDEX FROM mood_entries');
+      const indexesToDrop = [...new Set(
+        moodIndexes
+          .filter(index => index.Column_name === 'user_id' && index.Key_name !== 'PRIMARY')
+          .map(index => index.Key_name)
+      )];
+      for (const index of indexesToDrop) {
+        const name = index.replace(/`/g, '``');
+        await connection.query(`ALTER TABLE mood_entries DROP INDEX \`${name}\``);
+      }
+      await connection.query('ALTER TABLE mood_entries DROP COLUMN user_id');
+    } else {
+      const [unmappedMoodRows] = await connection.query(
+        'SELECT id FROM mood_entries WHERE mood_subject_id IS NULL LIMIT 1'
+      );
+      if (unmappedMoodRows.length) {
+        throw new Error('Mood records are missing pseudonymous subject IDs.');
+      }
+    }
+
+    await connection.query('ALTER TABLE mood_entries MODIFY COLUMN mood_subject_id CHAR(64) NOT NULL');
+    const [moodIndexes] = await connection.query('SHOW INDEX FROM mood_entries');
+    const indexNames = new Set(moodIndexes.map(index => index.Key_name));
+    if (!indexNames.has('idx_mood_subject_created')) {
+      await connection.query('ALTER TABLE mood_entries ADD INDEX idx_mood_subject_created (mood_subject_id, created_at)');
+    }
+    if (!indexNames.has('idx_mood_department_created')) {
+      await connection.query('ALTER TABLE mood_entries ADD INDEX idx_mood_department_created (department, created_at)');
+    }
+
+    // The backup now contains pseudonymous mood records without direct account IDs.
     await backupDatabase(connection);
 
     // 2. Validate and Add missing columns safely
@@ -358,21 +467,6 @@ async function applyMigrations() {
     await connection.query('ALTER TABLE reports ADD INDEX idx_reports_assigned_level (assigned_to, level, status)')
       .catch(error => { if (error.code !== 'ER_DUP_KEYNAME') throw error; });
 
-    // ─── MOOD TRACKER PATCHES ───
-    const [moodCols] = await connection.query('SHOW COLUMNS FROM mood_entries');
-    const moodColNames = moodCols.map(c => c.Field);
-    if (!moodColNames.includes('notes') && moodColNames.includes('note')) {
-      console.log('⚙️ Patching `mood_entries` table... Renaming `note` to `notes`');
-      await connection.query('ALTER TABLE mood_entries CHANGE COLUMN note notes TEXT NULL');
-    } else if (!moodColNames.includes('notes')) {
-      console.log('⚙️ Patching `mood_entries` table... Adding `notes` column');
-      await connection.query('ALTER TABLE mood_entries ADD COLUMN notes TEXT NULL');
-    }
-    if (!moodColNames.includes('consecutive_low_count')) {
-      console.log('⚙️ Patching `mood_entries` table... Adding `consecutive_low_count` column');
-      await connection.query('ALTER TABLE mood_entries ADD COLUMN consecutive_low_count INT NOT NULL DEFAULT 0');
-    }
-    
     // Check users: last_login
     const [userCols] = await connection.query('SHOW COLUMNS FROM users');
     const userColNames = userCols.map(c => c.Field);

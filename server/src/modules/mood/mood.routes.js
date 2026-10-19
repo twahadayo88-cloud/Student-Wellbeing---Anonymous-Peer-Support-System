@@ -10,9 +10,9 @@ router.post('/', restrictTo('student'), moodController.submitCheckIn);
 router.get('/history', restrictTo('student'), moodController.getHistory);
 router.get('/trend', restrictTo('student'), moodController.getTrendSummary);
 router.get('/reminder', restrictTo('student'), moodController.getReminderStatus);
+router.get('/recommendation-context', restrictTo('student'), moodController.getRecommendationContext);
 
 // Admin-only route — faculty is explicitly excluded by restrictTo and controller double-check
 router.get('/aggregated', restrictTo('admin', 'super_admin'), moodController.getAggregatedTrends);
 
 module.exports = router;
-

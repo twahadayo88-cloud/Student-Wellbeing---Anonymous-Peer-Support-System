@@ -24,10 +24,11 @@ async function monitorContent(
   content,
   contentType,
   userId,
-  contentId = null
+  contentId = null,
+  options = { useAi: false }
 ) {
 
-  const safetyResult = await contentSafety.analyzeContent(content);
+  const safetyResult = await contentSafety.analyzeContent(content, options);
   const severity = safetyResult.severity.toUpperCase();
   const reason = safetyResult.isFlagged
     ? `Content flagged: ${safetyResult.matchedTerms.join(', ') || 'local toxicity model'}`

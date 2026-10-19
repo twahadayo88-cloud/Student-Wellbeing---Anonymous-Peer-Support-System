@@ -77,13 +77,14 @@ ALTER TABLE chat_messages ADD COLUMN expires_at DATETIME NULL;
 -- 8. Mood Tracking (Core Wellbeing Hub Dependency)
 CREATE TABLE IF NOT EXISTS mood_entries (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
+  mood_subject_id CHAR(64) NOT NULL,
+  department VARCHAR(100) NULL,
   mood_score INT NOT NULL,
   notes TEXT NULL,
   consecutive_low_count INT NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  INDEX idx_mood_user (user_id)
+  INDEX idx_mood_subject_created (mood_subject_id, created_at),
+  INDEX idx_mood_department_created (department, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 9. Scheduled Background Tasks

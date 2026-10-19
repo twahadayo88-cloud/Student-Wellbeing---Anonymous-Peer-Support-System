@@ -133,6 +133,9 @@ async function getUserConversations(userId) {
     SELECT 
       cr.id as conversation_id,
       p.anonymous_id as peer_anonymous_id,
+      p.department as peer_department,
+      p.semester as peer_semester,
+      cr.subject_context,
       m.message as last_message_payload,
       m.created_at as last_message_time,
       (SELECT COUNT(*) FROM chat_messages unread WHERE unread.sender_id = p.user_id AND unread.receiver_id = ? AND unread.seen_at IS NULL) as unread_count
@@ -189,8 +192,10 @@ async function getConversationMessages(userId, conversationId) {
       m.chat_mode,
       m.seen_at,
       m.created_at as timestamp,
+      p.anonymous_id as sender,
       IF(m.sender_id = ?, 'me', 'peer') as direction
     FROM chat_messages m
+    JOIN profiles p ON p.user_id = m.sender_id
     WHERE (m.sender_id = ? AND m.receiver_id = ?) 
        OR (m.sender_id = ? AND m.receiver_id = ?)
     ORDER BY m.created_at ASC

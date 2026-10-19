@@ -334,9 +334,9 @@ export default function AdminPanel() {
   });
 
   const statCards = [
-    { label: 'Total Users', value: stats.total_users, color: 'from-blue-500 to-indigo-600', icon: Users },
-    { label: 'Active Today', value: stats.active_today, color: 'from-emerald-500 to-teal-600', icon: Zap },
-    { label: 'Violations', value: stats.total_violations, color: 'from-amber-500 to-orange-600', icon: AlertTriangle },
+    { label: 'Total Users', value: stats.total_users, gradient: 'from-pink-500 to-rose-500', icon: Users },
+    { label: 'Active Today', value: stats.active_today, gradient: 'from-emerald-400 to-teal-500', icon: Zap },
+    { label: 'Violations', value: stats.total_violations, gradient: 'from-amber-400 to-orange-500', icon: AlertTriangle },
   ];
 
   const fadeUp = {
@@ -348,31 +348,37 @@ export default function AdminPanel() {
   return (
     <>
       <Navbar />
-      <main className="min-h-screen pt-24 pb-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+      <main className="min-h-screen pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto bg-[#09090e]">
         <header className="mb-8">
-          <h1 className="text-3xl font-bold text-surface-900 dark:text-white">Admin Command Center</h1>
-          <p className="text-surface-500 mt-1">Real-time platform oversight and moderation.</p>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pink-500/10 border border-pink-500/20 text-pink-500 text-xs font-bold uppercase tracking-wider mb-2">
+            <Shield className="w-3.5 h-3.5" />
+            Security &amp; Moderation Core
+          </div>
+          <h1 className="text-3xl font-extrabold text-white">Admin <span className="brand-text">Command Center</span></h1>
+          <p className="text-surface-400 text-sm mt-1">Real-time platform oversight, pseudonymized moderation, and compliance tracking.</p>
         </header>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
           {statCards.map((card) => (
-            <motion.div key={card.label} {...fadeUp} className="glass-card p-6 border-l-4 border-l-transparent hover:border-l-current transition-all">
+            <motion.div key={card.label} {...fadeUp} className="glass-card-brand p-6 rounded-2xl hover:border-pink-500/30 transition-all border border-white/10 hover:shadow-lg hover:shadow-pink-500/5">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-xs font-bold text-surface-500 uppercase tracking-wider mb-1">{card.label}</p>
-                  <p className={`text-3xl font-bold bg-gradient-to-r ${card.color} bg-clip-text text-transparent`}>
+                  <p className="text-xs font-bold text-surface-400 uppercase tracking-wider mb-1.5">{card.label}</p>
+                  <p className={`text-3xl font-extrabold font-mono bg-gradient-to-r ${card.gradient} bg-clip-text text-transparent`}>
                     {card.value}
                   </p>
                 </div>
-                <card.icon className="w-6 h-6 text-surface-400" />
+                <div className="p-3 rounded-xl bg-white/5 border border-white/5">
+                  <card.icon className="w-5 h-5 text-pink-400" />
+                </div>
               </div>
             </motion.div>
           ))}
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex border-b border-surface-200 dark:border-surface-800 mb-8 overflow-x-auto no-scrollbar">
+        <div className="flex border-b border-white/10 mb-8 overflow-x-auto no-scrollbar gap-1">
           {['overview', 'users', 'violations', 'moderation', 'academic', 'trust', 'escalations', 'complaints', 'appeals', 'repeat-offenders', 'security', 'rules', 'policy-review', 'audit-logs', ...(canViewMoodTrends ? ['wellbeing'] : [])].map((tab) => (
             <button
               key={tab}
@@ -381,10 +387,10 @@ export default function AdminPanel() {
                 if (tab === 'wellbeing' && canViewMoodTrends) fetchMoodTrends();
                 if (['complaints', 'appeals', 'repeat-offenders', 'security', 'rules', 'policy-review'].includes(tab)) loadAdminSection(tab);
               }}
-              className={`px-6 py-3 text-sm font-bold uppercase tracking-wider transition-all border-b-2 ${
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
                 activeTab === tab
-                  ? 'border-primary-500 text-primary-600'
-                  : 'border-transparent text-surface-500 hover:text-surface-700 dark:hover:text-surface-300'
+                  ? 'btn-primary text-white shadow-md shadow-pink-500/10'
+                  : 'text-surface-400 hover:text-white hover:bg-white/5'
               }`}
             >
               {tab.replace('-', ' ')}

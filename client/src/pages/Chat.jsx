@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Megaphone, MessageSquare, Plus, Users, GraduationCap } from 'lucide-react';
-import Navbar from '../components/layout/Navbar';
+import { Megaphone, MessageSquare, Plus } from 'lucide-react';
+import Sidebar from '../components/layout/Sidebar';
+import PageHeader from '../components/layout/PageHeader';
 import ChatBox from '../components/chat/ChatBox';
 import AcademicBoard from './AcademicBoard';
 import useAuth from '../hooks/useAuth';
@@ -18,7 +19,7 @@ export default function Chat() {
   const [activePeer, setActivePeer] = useState(null);
   const [activeAnnouncement, setActiveAnnouncement] = useState(null);
   const [chatMode, setChatMode] = useState('chat_only');
-  
+
   // New Layout State
   const [activeTab, setActiveTab] = useState(() => {
     const tabFromUrl = searchParams.get('tab');
@@ -71,7 +72,7 @@ export default function Chat() {
         api.get('/communication/conversations'),
         api.get('/communication/broadcasts')
       ]);
-      
+
       if (convRes.status === 'fulfilled' && convRes.value.data.success) {
         setConversations(convRes.value.data.data);
       } else if (convRes.status === 'rejected') {
@@ -105,10 +106,6 @@ export default function Chat() {
     if (!socket) return;
 
     const onAccepted = (data) => {
-      setActivePeer({ 
-        anonymous_id: data.receiver_anonymous_id,
-        conversation_id: data.request_id // Use request_id sent by backend
-      });
       setNotification({ type: 'success', msg: `Your chat request was accepted by ${data.receiver_anonymous_id}!` });
       setTimeout(() => setNotification(null), 4000);
       fetchConversations();
@@ -148,27 +145,27 @@ export default function Chat() {
   };
 
   const modes = [
-    { 
-      id: 'chat_only', 
-      label: 'Chat Only', 
+    {
+      id: 'chat_only',
+      label: 'Chat Only',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
         </svg>
       )
     },
-    { 
-      id: 'study_group', 
-      label: 'Study Group', 
+    {
+      id: 'study_group',
+      label: 'Study Group',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
         </svg>
       )
     },
-    { 
-      id: 'campus_meeting', 
-      label: 'Campus Meeting', 
+    {
+      id: 'campus_meeting',
+      label: 'Campus Meeting',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -188,7 +185,7 @@ export default function Chat() {
 
         const updated = [...prev];
         const conv = updated[foundIndex];
-        
+
         // Update unread count if we are the receiver and NOT currently viewing this chat
         const isReceiver = data.receiver_anonymous_id === user?.anonymous_id;
         const isNotActive = activePeer?.anonymous_id !== data.sender_anonymous_id;
@@ -218,133 +215,114 @@ export default function Chat() {
 
   return (
     <>
-      <Navbar />
-      <main className="min-h-screen pt-20 pb-0 px-0 sm:px-0 lg:px-0 w-full flex bg-surface-50 dark:bg-surface-950">
-        
+      <Sidebar />
+      <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:pl-72 bg-slate-100 dark:bg-[#09090e] min-h-screen w-full transition-colors">
+        <div className="max-w-5xl mx-auto w-full">
+
+          {/* PAGE HEADER (standardized) */}
+          <PageHeader
+            title="Peer Chat Workspace"
+            subtitle="Trust-Based Secure Dashboard"
+            myId={user?.anonymous_id}
+          />
+
+          {/* Bounded Main Chat Box */}
+          <div className="w-full h-[calc(100vh-190px)] min-h-[500px] bg-white dark:bg-[#111118] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden flex shadow-2xl text-slate-900 dark:text-white transition-colors">
+
         {/* Toast Notification */}
         {notification && (
-          <div className={`fixed top-24 right-6 z-50 px-5 py-3 rounded-xl text-sm font-medium shadow-lg border ${
+          <div className={`fixed top-4 right-6 z-50 px-5 py-3 rounded-2xl text-sm font-medium shadow-xl border backdrop-blur-md ${
             notification.type === 'success'
-              ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 text-emerald-700 dark:text-emerald-400'
-              : 'bg-red-50 dark:bg-red-900/20 border-red-200 text-red-600'
+              ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-300'
+              : 'bg-red-950/80 border-red-500/40 text-red-300'
           }`}>
             {notification.msg}
           </div>
         )}
-        
-        {/* ULTRA-LEFT ICON SIDEBAR (WhatsApp Style) */}
-        <div className="w-16 h-[calc(100vh-5rem)] bg-surface-100 dark:bg-surface-900 border-r border-surface-200 dark:border-surface-800 flex flex-col items-center py-4 space-y-6 flex-shrink-0 z-10">
-          <button 
-            onClick={() => {
-              setActiveTab('chats');
-              setIsCreatingBroadcast(false);
-              setSearchParams({});
-            }}
-            className={`p-3 rounded-xl transition-all ${activeTab === 'chats' ? 'bg-primary-500/20 text-primary-500 shadow-inner' : 'text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-800 hover:text-surface-900 dark:hover:text-surface-100'}`}
-            title="Chats"
-          >
-            <MessageSquare size={24} />
-          </button>
-          
-          <button 
-            onClick={() => {
-              setActiveTab('announcements');
-              setActivePeer(null); // Clear active chat when switching to announcements
-              setSearchParams({});
-            }}
-            className={`p-3 rounded-xl transition-all relative ${activeTab === 'announcements' ? 'bg-primary-500/20 text-primary-500 shadow-inner' : 'text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-800 hover:text-surface-900 dark:hover:text-surface-100'}`}
-            title="Announcements & Communities"
-          >
-            <Users size={24} />
-            {announcements.filter(a => !readAnnouncements.includes(a.id)).length > 0 && (
-              <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-emerald-500 rounded-full border border-surface-100 dark:border-surface-900"></span>
-            )}
-          </button>
-          
-          <button 
-            onClick={() => {
-              setActiveTab('academic');
-              setActivePeer(null);
-              setActiveAnnouncement(null);
-              setIsCreatingBroadcast(false);
-              setSearchParams({ tab: 'academic' });
-            }}
-            className={`p-3 rounded-xl transition-all ${activeTab === 'academic' ? 'bg-primary-500/20 text-primary-500 shadow-inner' : 'text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-800 hover:text-surface-900 dark:hover:text-surface-100'}`}
-            title="Academic Board"
-          >
-            <GraduationCap size={24} />
-          </button>
-        </div>
 
         {/* MIDDLE PANEL: List View (Hidden when Academic Board is active) */}
         {activeTab !== 'academic' && (
-        <div className="w-full md:w-80 h-[calc(100vh-5rem)] bg-white dark:bg-surface-900/50 border-r border-surface-200 dark:border-surface-800 flex flex-col flex-shrink-0">
-          
+        <div className="w-80 flex-shrink-0 h-full bg-slate-50 dark:bg-[#111118] border-r border-slate-200 dark:border-slate-800 flex flex-col min-w-0 overflow-hidden transition-colors">
+
           {/* Chats Tab */}
           {activeTab === 'chats' && (
             <>
-              <div className="p-4 border-b border-surface-200 dark:border-surface-800">
-                <h1 className="text-xl font-bold text-surface-900 dark:text-white">Chats</h1>
+              <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <h1 className="text-base font-bold tracking-wide">Conversations</h1>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white dark:bg-white/5 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800">
+                  {conversations.length} Active
+                </span>
               </div>
-              
+
               <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
                 {isLoading ? (
                   <div className="animate-pulse space-y-2 pt-2 px-2">
-                    {[1,2,3,4].map(n => <div key={n} className="h-16 bg-surface-100 dark:bg-surface-800 rounded-xl" />)}
+                    {[1,2,3,4].map(n => <div key={n} className="h-16 bg-slate-200/70 dark:bg-white/5 rounded-2xl" />)}
                   </div>
                 ) : conversations.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-                    <div className="w-12 h-12 bg-surface-100 dark:bg-surface-800 rounded-full flex items-center justify-center mb-3">
-                      <MessageSquare className="w-6 h-6 text-surface-400" />
+                  <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+                    <div className="w-12 h-12 bg-slate-100 dark:bg-white/5 rounded-2xl flex items-center justify-center mb-3 border border-slate-200 dark:border-white/5">
+                      <MessageSquare className="w-6 h-6 text-pink-500/80" />
                     </div>
-                    <p className="text-xs text-surface-400">No active chats. Start one from the dashboard.</p>
+                    <p className="text-xs text-slate-500 dark:text-surface-400">No active chats. Start one from the dashboard or peer board.</p>
                   </div>
                 ) : (
                   conversations.map((conv, idx) => {
                     const isActive = activePeer?.anonymous_id === conv.peer_anonymous_id;
                     const time = conv.last_message_time ? new Date(conv.last_message_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-                    
+                    const avatarUrl = `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(conv.peer_anonymous_id || 'peer')}&backgroundColor=transparent`;
+
                     return (
                       <button
                         key={idx}
                         onClick={() => {
-                          setActivePeer({ 
+                          setActivePeer({
                             anonymous_id: conv.peer_anonymous_id,
-                            conversation_id: conv.conversation_id 
+                            conversation_id: conv.conversation_id ,
+                            department: conv.peer_department,
+                            semester: conv.peer_semester,
+                            subject_context: conv.subject_context,
                           });
                           setIsCreatingBroadcast(false);
                           setActiveAnnouncement(null);
                           // Clear unread count locally
                           setConversations(prev => prev.map(c => c.conversation_id === conv.conversation_id ? { ...c, unread_count: 0 } : c));
                         }}
-                        className={`w-full p-3 rounded-2xl transition-all flex items-center space-x-4 group ${
+                        className={`w-full p-3 rounded-xl transition-all flex items-center space-x-3.5 group border ${
                           isActive
-                            ? 'bg-surface-100 dark:bg-surface-800/80 shadow-sm'
-                            : 'hover:bg-surface-50 dark:hover:bg-surface-800/40'
+                            ? 'bg-gradient-to-r from-pink-500/10 via-red-500/5 to-transparent border-pink-500/30 shadow-md shadow-pink-500/5'
+                            : 'border-transparent hover:bg-slate-100 dark:hover:bg-white/[0.04]'
                         }`}
                       >
                         <div className="relative flex-shrink-0">
-                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-fuchsia-400 flex items-center justify-center text-white font-bold text-lg shadow-sm">
-                            {conv.peer_anonymous_id.slice(0, 2).toUpperCase()}
+                          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-[#1c1c28] dark:to-[#12121a] border border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden p-0.5">
+                            <img
+                              src={avatarUrl}
+                              alt="Avatar"
+                              className="w-full h-full object-cover"
+                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            />
                           </div>
                           {conv.unread_count > 0 && (
-                            <span className="absolute -top-1 -right-1 bg-emerald-500 text-white text-[11px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white dark:border-surface-900 shadow-sm">
+                            <span className="absolute -top-1 -right-1 bg-gradient-to-r from-pink-500 to-amber-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#111118] shadow-sm">
                                {conv.unread_count > 9 ? '9+' : conv.unread_count}
                             </span>
                           )}
                         </div>
                         <div className="min-w-0 flex-1 flex flex-col justify-center text-left">
                           <div className="flex justify-between items-center mb-1">
-                            <p className="text-[15px] font-bold text-surface-900 dark:text-white truncate pr-2">
+                            <p className="text-sm font-bold text-slate-900 dark:text-white font-mono truncate pr-2 group-hover:text-pink-400 transition-colors">
                                {conv.peer_anonymous_id}
                             </p>
-                            <span className={`text-[11px] whitespace-nowrap ${conv.unread_count > 0 ? 'text-emerald-500 font-bold' : 'text-surface-400 font-medium'}`}>
+                            <span className={`text-[10px] font-mono whitespace-nowrap ${conv.unread_count > 0 ? 'text-pink-500 dark:text-pink-400 font-bold' : 'text-slate-400 dark:text-surface-500'}`}>
                                {time}
                             </span>
                           </div>
                           <div className="flex justify-between items-center">
-                            <p className={`text-sm truncate pr-2 ${conv.unread_count > 0 ? 'text-surface-900 dark:text-surface-100 font-semibold' : 'text-surface-500 dark:text-surface-400'}`}>
-                               {conv.last_message || 'Start your conversation...'}
+                            <p className={`text-xs truncate pr-2 ${conv.unread_count > 0 ? 'text-slate-900 dark:text-white font-medium' : 'text-slate-500 dark:text-surface-400'}`}>
+                               {conv.subject_context
+                                  ? <span className="text-pink-400/90"><span className="text-[9px] font-bold uppercase tracking-wider">Topic:</span> {conv.subject_context}</span>
+                                  : conv.last_message || 'Start your conversation...'}
                             </p>
                           </div>
                         </div>
@@ -359,30 +337,30 @@ export default function Chat() {
           {/* Announcements Tab */}
           {activeTab === 'announcements' && (
             <>
-              <div className="p-4 border-b border-surface-200 dark:border-surface-800 flex justify-between items-center">
-                <h1 className="text-xl font-bold text-surface-900 dark:text-white">Announcements</h1>
+              <div className="p-4 border-b border-slate-200 dark:border-white/5 flex justify-between items-center">
+                <h1 className="text-lg font-bold text-slate-900 dark:text-white">Broadcasts</h1>
               </div>
-              
+
               <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-2">
                 {isFaculty && (
-                   <button 
+                   <button
                      onClick={() => {
                        setIsCreatingBroadcast(true);
                        setActiveAnnouncement(null);
                        setActivePeer(null);
                      }}
-                     className={`w-full p-3 rounded-2xl transition-all flex items-center space-x-4 ${
-                       isCreatingBroadcast 
-                        ? 'bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800/50' 
-                        : 'bg-surface-50 dark:bg-surface-800/40 hover:bg-surface-100 dark:hover:bg-surface-800/80 border border-transparent'
+                     className={`w-full p-3 rounded-2xl transition-all flex items-center space-x-3 border ${
+                       isCreatingBroadcast
+                        ? 'bg-pink-500/10 border-pink-500/30'
+                        : 'bg-slate-100 dark:bg-white/[0.02] hover:bg-slate-200 dark:hover:bg-white/[0.05] border-slate-200 dark:border-white/5'
                      }`}
                    >
-                     <div className="w-12 h-12 rounded-xl bg-primary-100 dark:bg-primary-900/50 flex items-center justify-center text-primary-600 dark:text-primary-400">
-                        <Plus size={24} />
+                     <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-pink-500 to-amber-500 flex items-center justify-center text-white shadow-md shadow-pink-500/20">
+                        <Plus size={22} />
                      </div>
                      <div className="text-left">
-                        <p className="font-bold text-surface-900 dark:text-white text-[15px]">New Announcement</p>
-                        <p className="text-xs text-surface-500">Broadcast to your department</p>
+                        <p className="font-bold text-white text-sm">New Broadcast</p>
+                        <p className="text-[11px] text-surface-400">Post department bulletin</p>
                      </div>
                    </button>
                 )}
@@ -400,36 +378,36 @@ export default function Chat() {
                         localStorage.setItem(READ_KEY, JSON.stringify(updated));
                       }
                     }}
-                    className={`w-full p-3 rounded-2xl transition-all text-left flex items-start space-x-3 relative ${
+                    className={`w-full p-3 rounded-2xl transition-all text-left flex items-start space-x-3 relative border ${
                       activeAnnouncement === ann
-                        ? 'bg-surface-100 dark:bg-surface-800/80 shadow-sm'
-                        : 'hover:bg-surface-50 dark:hover:bg-surface-800/40'
+                        ? 'bg-pink-500/10 border-pink-500/30 shadow-md'
+                        : 'border-transparent hover:bg-slate-100 dark:hover:bg-white/[0.03]'
                     }`}
                   >
-                    <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 relative flex-shrink-0">
-                      <Megaphone size={20} />
+                    <div className="w-11 h-11 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400 relative flex-shrink-0">
+                      <Megaphone size={18} />
                     </div>
-                    <div className="min-w-0 flex-1 relative flex flex-col justify-center h-12">
+                    <div className="min-w-0 flex-1 relative flex flex-col justify-center">
                       <div className="flex justify-between items-start">
-                        <p className="text-[15px] font-bold text-surface-900 dark:text-white truncate">{ann.sender_anonymous_id || 'System'}</p>
+                        <p className="text-sm font-bold text-slate-900 dark:text-white font-mono truncate">{ann.sender_anonymous_id || 'Faculty Broadcast'}</p>
                         {!readAnnouncements.includes(ann.id) && (
-                          <span className="w-2 h-2 bg-emerald-500 rounded-full flex-shrink-0 mt-1.5 ml-2"></span>
+                          <span className="w-2 h-2 bg-pink-500 rounded-full flex-shrink-0 mt-1 ml-2"></span>
                         )}
                       </div>
-                      <div className="flex justify-between items-center mt-0.5">
-                        <p className="text-xs text-surface-500 truncate">{ann.message}</p>
-                        <p className="text-[10px] text-surface-400 ml-2 whitespace-nowrap">{new Date(ann.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                      <div className="flex justify-between items-center mt-1">
+                        <p className="text-xs text-slate-500 dark:text-surface-400 truncate">{ann.message}</p>
+                        <p className="text-[10px] font-mono text-slate-400 dark:text-surface-500 ml-2 whitespace-nowrap">{new Date(ann.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                       </div>
                     </div>
                   </button>
                 ))}
-                
+
                 {!isLoading && announcements.length === 0 && (
-                   <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-                    <div className="w-12 h-12 bg-surface-100 dark:bg-surface-800 rounded-full flex items-center justify-center mb-3 text-surface-400">
-                      <Megaphone className="w-6 h-6" />
+                   <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+                    <div className="w-12 h-12 bg-slate-100 dark:bg-white/5 rounded-2xl flex items-center justify-center mb-3 border border-slate-200 dark:border-white/5">
+                      <Megaphone className="w-6 h-6 text-pink-500/80" />
                     </div>
-                    <p className="text-xs text-surface-400">No announcements yet.</p>
+                    <p className="text-xs text-slate-500 dark:text-surface-400">No broadcasts yet.</p>
                   </div>
                 )}
               </div>
@@ -440,82 +418,87 @@ export default function Chat() {
         )}
 
         {/* RIGHT PANEL: Main Content Area */}
-        <div className={`flex-1 h-[calc(100vh-5rem)] relative ${activeTab === 'academic' ? 'bg-surface-50 dark:bg-surface-950 overflow-y-auto' : 'bg-surface-50 dark:bg-[#0b141a]'}`}>
-          
+        <div className={`flex-1 min-w-0 h-full relative overflow-hidden ${activeTab === 'academic' ? 'bg-slate-50 dark:bg-[#09090e] overflow-y-auto' : 'bg-slate-50 dark:bg-[#0d0d14] transition-colors'}`}>
+
           {/* SCENARIO 0: Academic Board (Full Width) */}
           {activeTab === 'academic' ? (
-             <div className="w-full h-full overflow-y-auto custom-scrollbar">
+             <div className="w-full h-full overflow-y-auto overflow-x-hidden custom-scrollbar">
                 <AcademicBoard />
              </div>
           ) : isCreatingBroadcast ? (
-             <div className="w-full h-full flex flex-col items-center justify-center p-8 bg-surface-50 dark:bg-[#0b141a]">
-                <motion.div 
+             <div className="w-full h-full flex flex-col items-center justify-center p-8 bg-slate-50 dark:bg-[#09090e]">
+                <motion.div
                   initial={{ scale: 0.95, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   className="max-w-2xl w-full text-center"
                 >
-                   <div className="w-24 h-24 bg-surface-200 dark:bg-surface-800 rounded-full flex items-center justify-center mx-auto mb-8 text-surface-400">
-                      <Users size={48} />
+                   <div className="w-20 h-20 bg-gradient-to-br from-pink-500/20 to-amber-500/20 border border-pink-500/30 rounded-3xl flex items-center justify-center mx-auto mb-6 text-pink-500 shadow-xl shadow-pink-500/10">
+                      <Megaphone size={36} />
                    </div>
-                   <h2 className="text-3xl font-light text-surface-900 dark:text-white mb-4">Create Announcement</h2>
-                   <p className="text-surface-500 mb-10 text-lg">Send an official announcement to all students in your department.</p>
-                   
-                   <div className="bg-white dark:bg-surface-900 rounded-2xl shadow-sm border border-surface-200 dark:border-surface-800 overflow-hidden text-left">
+                   <h2 className="text-2xl font-bold text-white mb-2">Create Faculty Broadcast</h2>
+                   <p className="text-surface-400 mb-8 text-sm">Send an official bulletin instantly to all students in your academic department.</p>
+
+                   <div className="glass-card-brand p-6 rounded-3xl shadow-2xl text-left border border-white/10">
                       <textarea
                         value={broadcastMsg}
                         onChange={(e) => setBroadcastMsg(e.target.value)}
-                        placeholder="Type your announcement here..."
-                        className="w-full h-40 bg-transparent p-6 text-surface-900 dark:text-white focus:ring-0 outline-none resize-none"
+                        placeholder="Type your official broadcast message here..."
+                        className="w-full h-40 bg-surface-50 dark:bg-[#09090e] border border-surface-200 dark:border-white/10 rounded-2xl p-4 text-surface-900 dark:text-white placeholder:text-surface-500 focus:ring-2 focus:ring-pink-500 outline-none resize-none text-sm leading-relaxed"
                       />
-                      <div className="bg-surface-50 dark:bg-surface-800/50 p-4 border-t border-surface-200 dark:border-surface-800 flex justify-end">
-                         <button 
-                           onClick={handleBroadcast} 
+                      <div className="pt-4 flex items-center justify-between border-t border-surface-200 dark:border-white/10 mt-4">
+                         <span className="text-xs text-surface-400 flex items-center gap-1.5">
+                           <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                           Encrypted & Verified Faculty Transmission
+                         </span>
+                         <button
+                           onClick={handleBroadcast}
                            disabled={!broadcastMsg.trim()}
-                           className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-2.5 rounded-full font-bold transition-colors"
+                           className="btn-primary text-xs px-6 py-2.5 rounded-xl font-bold transition-all disabled:opacity-50"
                          >
-                           Send
+                           Broadcast Now
                          </button>
                       </div>
                    </div>
-                   <p className="text-xs text-surface-400 mt-6 flex items-center justify-center gap-2">
-                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                     Announcements are secure and end-to-end delivered
-                   </p>
                 </motion.div>
              </div>
           ) : activeAnnouncement ? (
              /* SCENARIO 2: Viewing an Announcement */
-             <div className="w-full h-full flex flex-col items-center justify-center p-8 bg-surface-50 dark:bg-[#0b141a]">
-                <motion.div 
+             <div className="w-full h-full flex flex-col items-center justify-center p-8 bg-slate-50 dark:bg-[#09090e]">
+                <motion.div
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   className="max-w-2xl w-full"
                 >
-                   <div className="bg-white dark:bg-surface-900 rounded-2xl shadow-sm border border-surface-200 dark:border-surface-800 overflow-hidden">
-                      <div className="bg-primary-500 p-8 text-center relative overflow-hidden">
-                         <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -translate-y-1/2 translate-x-1/2" />
-                         <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white mx-auto mb-4 backdrop-blur-sm">
-                            <Megaphone size={32} />
+                   <div className="glass-card-brand rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
+                      <div className="p-8 text-center relative overflow-hidden" style={{ background: 'linear-gradient(135deg, rgba(236,72,153,0.2), rgba(239,68,68,0.15), rgba(245,158,11,0.1))' }}>
+                         <div className="w-16 h-16 bg-gradient-to-tr from-pink-500 to-amber-500 rounded-2xl flex items-center justify-center text-white mx-auto mb-4 shadow-lg shadow-pink-500/20">
+                            <Megaphone size={28} />
                          </div>
-                         <span className="inline-block px-3 py-1 bg-black/20 text-white text-[10px] font-bold uppercase tracking-widest rounded-full">Official Announcement</span>
+                         <span className="inline-block px-3 py-1 bg-pink-500/20 border border-pink-500/30 text-pink-400 text-[10px] font-bold uppercase tracking-widest rounded-full">
+                           Official Department Broadcast
+                         </span>
                       </div>
-                      
+
                       <div className="p-8">
-                         <p className="text-surface-700 dark:text-surface-300 text-lg leading-relaxed whitespace-pre-wrap mb-8">
+                         <p className="text-surface-200 text-base leading-relaxed whitespace-pre-wrap mb-8">
                             {activeAnnouncement.message}
                          </p>
-                         
-                         <div className="flex items-center justify-between border-t border-surface-100 dark:border-surface-800 pt-6">
+
+                         <div className="flex items-center justify-between border-t border-white/10 pt-6">
                             <div className="flex items-center space-x-3">
-                               <div className="w-10 h-10 rounded-full bg-surface-100 dark:bg-surface-800 flex items-center justify-center text-xs font-bold text-surface-600 dark:text-surface-300">
-                                 {activeAnnouncement.sender_anonymous_id?.slice(0, 2).toUpperCase() || 'SYS'}
+                               <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#1c1c28] to-[#12121a] border border-white/10 flex items-center justify-center overflow-hidden p-0.5">
+                                 <img
+                                   src={`https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(activeAnnouncement.sender_anonymous_id || 'faculty')}&backgroundColor=transparent`}
+                                   alt="Avatar"
+                                   className="w-full h-full object-cover"
+                                 />
                                </div>
                                <div>
-                                 <p className="text-sm font-bold text-surface-900 dark:text-white">{activeAnnouncement.sender_anonymous_id || 'System Admin'}</p>
-                                 <p className="text-xs text-surface-500 capitalize">{activeAnnouncement.sender_role || 'administrator'}</p>
+                                 <p className="text-sm font-bold text-white font-mono">{activeAnnouncement.sender_anonymous_id || 'System Admin'}</p>
+                                 <p className="text-xs text-pink-400 capitalize">{activeAnnouncement.sender_role || 'Faculty Member'}</p>
                                </div>
                             </div>
-                            <span className="text-xs text-surface-400">
+                            <span className="text-xs text-surface-400 font-mono">
                                {new Date(activeAnnouncement.timestamp).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
                             </span>
                          </div>
@@ -526,36 +509,36 @@ export default function Chat() {
           ) : activePeer ? (
              /* SCENARIO 3: Active Chat */
              <div className="w-full h-full flex flex-col">
-                {/* Embedded Header/Modes area could go here, or we pass it to ChatBox */}
-                <ChatBox 
+                <ChatBox
                   key={(activePeer.conversation_id || activePeer.anonymous_id) + chatMode}
-                  peer={activePeer} 
-                  onClose={() => setActivePeer(null)} 
+                  peer={activePeer}
+                  onClose={() => setActivePeer(null)}
                   initialMode={chatMode}
                   isInline={true}
                 />
              </div>
           ) : (
-             /* SCENARIO 4: Empty State (Default) */
-             <div className="w-full h-full flex flex-col items-center justify-center text-center p-8 border-b-[6px] border-emerald-500">
-                <div className="w-64 h-48 mb-8 relative">
-                   <div className="absolute inset-0 flex items-center justify-center">
-                     <svg viewBox="0 0 100 100" className="w-full h-full text-surface-200 dark:text-surface-800">
-                       <circle cx="50" cy="50" r="40" fill="currentColor" />
-                       <path d="M30 50h40M50 30v40" stroke="var(--color-surface-50)" strokeWidth="4" />
-                     </svg>
-                   </div>
+              /* SCENARIO 4: Empty State (Default) */
+             <div className="w-full h-full flex flex-col items-center justify-center text-center p-8 bg-slate-50 dark:bg-[#09090e]">
+                <div className="w-24 h-24 mb-6 rounded-3xl bg-gradient-to-br from-pink-500/20 via-red-500/10 to-amber-500/20 border border-pink-500/30 flex items-center justify-center shadow-xl shadow-pink-500/10">
+                   <MessageSquare className="w-12 h-12 text-pink-500" />
                 </div>
-                <h2 className="text-3xl font-light text-surface-900 dark:text-white mb-4">PeerBridge for Web</h2>
-                <p className="text-surface-500 max-w-md text-sm leading-relaxed mb-8">Send and receive messages securely. Coordinate with peers, view department announcements, and stay connected.</p>
-                
-                <p className="text-xs text-surface-400 flex items-center gap-2 mt-auto">
-                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                   Your personal messages are end-to-end encrypted
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+                  Peer<span className="brand-text">Bridge</span> Secure Messenger
+                </h2>
+                <p className="text-slate-500 dark:text-surface-400 max-w-md text-sm leading-relaxed mb-8">
+                  Connect anonymously with verified academic peers, share study materials, and access verified department broadcasts.
                 </p>
-             </div>
-          )}
 
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-200/70 dark:bg-white/5 border border-slate-300 dark:border-white/10 text-xs text-slate-600 dark:text-surface-400 font-mono">
+                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                   Zero-Knowledge Anonymous Encryption Active
+                </div>
+             </div>
+           )}
+
+          </div>
+          </div>
         </div>
       </main>
     </>

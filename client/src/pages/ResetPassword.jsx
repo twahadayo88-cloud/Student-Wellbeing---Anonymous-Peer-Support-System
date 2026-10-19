@@ -65,39 +65,47 @@ export default function ResetPassword() {
   return (
     <>
       <Navbar />
-      <div className="min-h-screen flex items-center justify-center pt-16 px-4">
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/4 right-1/4 w-72 h-72 bg-primary-400/10 rounded-full blur-3xl" />
-          <div className="absolute bottom-1/4 left-1/4 w-72 h-72 bg-accent-400/10 rounded-full blur-3xl" />
-        </div>
+      <div className="min-h-screen flex items-center justify-center pt-20 pb-12 px-4 relative overflow-hidden bg-slate-50 dark:bg-[#09090e] transition-colors">
+        {/* Decorative Orbs */}
+        <div className="orb orb-pink -top-20 -left-20 pointer-events-none" />
+        <div className="orb orb-red top-1/2 -right-24 pointer-events-none" />
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="relative w-full max-w-md"
+          className="relative w-full max-w-md z-10"
         >
-          <div className="glass-card p-8">
+          <div className="glass-card-brand p-8 sm:p-10 shadow-2xl relative overflow-hidden">
             <div className="text-center mb-8">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white font-bold text-lg mx-auto mb-4">
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-extrabold text-xl mx-auto mb-4 shadow-lg shadow-pink-500/30"
+                style={{ background: 'linear-gradient(135deg, #ec4899, #ef4444, #f59e0b)' }}
+              >
                 PB
               </div>
-              <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Create New Password</h1>
-              <p className="text-surface-500 dark:text-surface-400 text-sm mt-1">
-                Choose a strong password to protect your account.
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                Create New Password
+              </h1>
+              <p className="text-slate-500 dark:text-slate-400 text-sm mt-1.5 font-medium">
+                Choose a strong password to protect your account
               </p>
             </div>
 
             {error && (
-              <div className="mb-6 p-3 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded-lg text-sm border border-red-200 dark:border-red-800 flex items-start gap-2">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="mb-6 p-3.5 bg-red-500/10 dark:bg-red-500/15 text-red-600 dark:text-red-400 rounded-xl text-xs border border-red-500/30 font-medium flex items-start gap-2"
+              >
                 <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" />
                 <span>{error}</span>
-              </div>
+              </motion.div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                   New Password
                 </label>
                 <input
@@ -111,7 +119,7 @@ export default function ResetPassword() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                   Confirm Password
                 </label>
                 <input
@@ -125,18 +133,20 @@ export default function ResetPassword() {
               </div>
 
               {/* Password Requirements UI */}
-              <div className="bg-surface-50 dark:bg-surface-800/50 p-4 rounded-xl space-y-2">
-                <p className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-2">Requirements:</p>
+              <div className="bg-slate-100/70 dark:bg-white/[0.03] border border-slate-200/60 dark:border-white/5 p-4 rounded-xl space-y-2">
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 font-mono">
+                  Requirements
+                </p>
                 {passwordRequirements.map((req, idx) => {
                   const isMet = req.test(formData.password);
                   return (
-                    <div key={idx} className="flex items-center gap-2 text-sm">
+                    <div key={idx} className="flex items-center gap-2 text-xs">
                       {isMet ? (
-                        <Check className="w-4 h-4 text-green-500" />
+                        <Check className="w-4 h-4 text-emerald-500 shrink-0" />
                       ) : (
-                        <X className="w-4 h-4 text-surface-300 dark:text-surface-600" />
+                        <X className="w-4 h-4 text-slate-400 dark:text-slate-600 shrink-0" />
                       )}
-                      <span className={isMet ? 'text-surface-900 dark:text-surface-100' : 'text-surface-500'}>
+                      <span className={isMet ? 'text-slate-900 dark:text-slate-200 font-medium' : 'text-slate-400 dark:text-slate-500'}>
                         {req.label}
                       </span>
                     </div>
@@ -144,18 +154,20 @@ export default function ResetPassword() {
                 })}
               </div>
 
-              <button 
-                type="submit" 
-                className="btn-primary w-full flex items-center justify-center gap-2" 
-                disabled={isLoading || passwordRequirements.some(req => !req.test(formData.password)) || formData.password !== formData.confirmPassword}
-              >
-                {isLoading ? 'Resetting...' : (
-                  <>
-                    <ShieldCheck className="w-5 h-5" />
-                    Reset Password
-                  </>
-                )}
-              </button>
+              <div className="pt-2">
+                <button 
+                  type="submit" 
+                  className="btn-primary w-full py-3 text-sm font-bold tracking-wide flex items-center justify-center gap-2" 
+                  disabled={isLoading || passwordRequirements.some(req => !req.test(formData.password)) || formData.password !== formData.confirmPassword}
+                >
+                  {isLoading ? 'Resetting...' : (
+                    <>
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>Reset Password</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </form>
           </div>
         </motion.div>

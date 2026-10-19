@@ -14,9 +14,11 @@
  *   3. Deletion is soft (72-hour GDPR delay)
  */
 
-const { query } = require('../../config/db.config');
+const { query, pool } = require('../../config/db.config');
 const safeParse = require('../../utils/safeParse');
 const logger = require('../../utils/logger');
+const { getMoodSubjectId } = require('../mood/moodIdentity');
+const AppError = require('../../utils/AppError');
 
 /**
  * Fetch a profile by user ID.
@@ -220,10 +222,8 @@ async function updateProfile(userId, updates, role) {
  * @param {object} updates
  */
 async function updateConsent(userId, updates) {
-  // BUG-023 FIX: Use logger instead of console.log
   logger.info('Updating consent for user', { userId });
 
-  // Build dynamic SET from whatever consent fields are provided
   const allowed = ['consent_data_collection', 'consent_mood_tracking', 'consent_ai_analysis'];
   const fields = Object.keys(updates).filter(k => allowed.includes(k));
 
@@ -235,7 +235,41 @@ async function updateConsent(userId, updates) {
   const values = fields.map(f => updates[f] ? 1 : 0);
   values.push(userId);
 
-  await query(`UPDATE profiles SET ${setClauses} WHERE user_id = ?`, values);
+  const connection = await pool.getConnection();
+  const lockName = `mood:${getMoodSubjectId(userId).slice(0, 58)}`;
+  let lockAcquired = false;
+  try {
+    if (updates.consent_mood_tracking !== undefined) {
+      const [lockRows] = await connection.execute('SELECT GET_LOCK(?, 5) AS acquired', [lockName]);
+      lockAcquired = Number(lockRows[0]?.acquired) === 1;
+      if (!lockAcquired) {
+        throw new AppError('Unable to safely update mood consent. Please try again.', 503);
+      }
+    }
+    await connection.beginTransaction();
+    await connection.execute(
+      `UPDATE profiles SET ${setClauses} WHERE user_id = ?`,
+      values
+    );
+    if (updates.consent_mood_tracking === false) {
+      await connection.execute(
+        'DELETE FROM mood_entries WHERE mood_subject_id = ?',
+        [getMoodSubjectId(userId)]
+      );
+    }
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    try {
+      if (lockAcquired) {
+        await connection.execute('SELECT RELEASE_LOCK(?)', [lockName]);
+      }
+    } finally {
+      connection.release();
+    }
+  }
 }
 
 /**

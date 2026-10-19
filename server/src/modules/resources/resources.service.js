@@ -1,6 +1,7 @@
 const { query } = require('../../config/db.config');
 const AppError = require('../../utils/AppError');
 const contentSafety = require('../../services/contentSafety.service');
+const moodService = require('../mood/mood.service');
 
 async function scanMetadata(title, description) {
   return contentSafety.analyzeContent(`${title}\n${description}`);
@@ -68,33 +69,56 @@ async function listApprovedResources(filters = {}, userId, options = {}) {
             (SELECT COUNT(*) FROM resource_reviews rv WHERE rv.resource_id = r.id) AS review_count,
             (SELECT COUNT(*) FROM resource_bookmarks rb WHERE rb.resource_id = r.id) AS bookmark_count,
             EXISTS(SELECT 1 FROM resource_bookmarks mine WHERE mine.resource_id = r.id AND mine.user_id = ?) AS is_bookmarked,
-            CASE WHEN ? <= 2 AND LOWER(r.category) IN ('wellbeing', 'wellness') THEN 1 ELSE 0 END AS mood_match
+            (
+              CASE
+                WHEN ? <= 2 AND LOWER(r.category) IN ('wellbeing', 'wellness') THEN 35
+                WHEN ? >= 4 AND LOWER(r.category) IN ('practice', 'lecture notes', 'reference') THEN 10
+                ELSE 0
+              END
+              + CASE
+                  WHEN r.subject IS NOT NULL AND student_profile.subjects IS NOT NULL
+                       AND JSON_CONTAINS(student_profile.subjects, JSON_QUOTE(r.subject)) THEN 30
+                  ELSE 0
+                END
+              + CASE
+                  WHEN r.semester IS NOT NULL AND r.semester = student_profile.semester THEN 20
+                  ELSE 0
+                END
+              + CASE WHEN EXISTS (
+                  SELECT 1 FROM resource_reviews personal_review
+                  WHERE personal_review.resource_id = r.id
+                    AND personal_review.user_id = ? AND personal_review.rating >= 4
+                ) THEN 15 ELSE 0 END
+            ) AS recommendation_score
      FROM resources r
      LEFT JOIN profiles p ON p.user_id = r.uploader_id
+     LEFT JOIN profiles student_profile ON student_profile.user_id = ?
      WHERE ${conditions.join(' AND ')}
-     ORDER BY ${options.recommendations ? 'mood_match DESC,' : ''}
+     ORDER BY ${options.recommendations ? 'recommendation_score DESC,' : ''}
               (bookmark_count + review_count * 0.25) DESC, average_rating DESC, r.created_at DESC
      LIMIT 100`,
-    [userId, moodScore, ...params.slice(1)]
+    [userId, moodScore, moodScore, userId, userId, ...params.slice(1)]
   );
-  return rows.map(row => ({ ...row, average_rating: Number(row.average_rating) }));
+  return rows.map(row => ({
+    ...row,
+    average_rating: Number(row.average_rating),
+  }));
 }
 
 async function getRecommendations(userId) {
-  const [moods] = await query(
-    'SELECT mood_score FROM mood_entries WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
-    [userId]
-  );
+  const moodContext = await moodService.getRecommendationContext(userId);
+  const moodScore = moodContext.mood_score || 3;
   return listApprovedResources({}, userId, {
     recommendations: true,
-    moodScore: moods.length ? Number(moods[0].mood_score) : 3,
+    moodScore,
   });
 }
 
 async function getMyResources(userId) {
   const [rows] = await query(
     `SELECT id, title, description, subject, semester, category, external_url,
-            original_file_name, status, is_flagged, moderation_reason, created_at
+            original_file_name, status, is_flagged, moderation_reason,
+            relevance_score, quality_score, review_note, created_at
      FROM resources WHERE uploader_id = ? ORDER BY created_at DESC`,
     [userId]
   );
@@ -105,7 +129,8 @@ async function getFacultyQueue() {
   const [rows] = await query(
     `SELECT r.id, r.title, r.description, r.subject, r.semester, r.category,
             r.external_url, r.original_file_name, r.uploader_id, r.status,
-            r.is_flagged, r.moderation_reason, r.created_at,
+            r.is_flagged, r.moderation_reason, r.relevance_score, r.quality_score,
+            r.created_at,
             p.anonymous_id AS uploader_anonymous_id
      FROM resources r
      LEFT JOIN profiles p ON p.user_id = r.uploader_id
@@ -115,9 +140,12 @@ async function getFacultyQueue() {
   return rows;
 }
 
-async function reviewResource(resourceId, facultyId, status, note) {
+async function reviewResource(resourceId, facultyId, status, note, relevanceScore, qualityScore) {
   if (!['approved', 'rejected'].includes(status)) {
     throw AppError.badRequest('Review status must be approved or rejected.');
+  }
+  if (![relevanceScore, qualityScore].every(score => Number.isInteger(score) && score >= 1 && score <= 5)) {
+    throw AppError.badRequest('Relevance and quality scores must each be integers from 1 to 5.');
   }
   const reviewNote = typeof note === 'string' ? note.trim() : '';
   if (reviewNote.length > 1000) {
@@ -128,9 +156,12 @@ async function reviewResource(resourceId, facultyId, status, note) {
   }
   const [result] = await query(
     `UPDATE resources
-     SET status = ?, reviewed_by = ?, reviewed_at = NOW(), review_note = ?
+     SET status = ?, reviewed_by = ?, reviewed_at = NOW(), review_note = ?,
+         relevance_score = ?, quality_score = ?,
+         is_flagged = IF(? = 'approved', 0, is_flagged),
+         moderation_reason = IF(? = 'approved', NULL, moderation_reason)
      WHERE id = ? AND status IN ('pending', 'flagged')`,
-    [status, facultyId, reviewNote || null, resourceId]
+    [status, facultyId, reviewNote || null, relevanceScore, qualityScore, status, status, resourceId]
   );
   if (!result.affectedRows) throw AppError.notFound('Pending resource not found.');
 }
@@ -148,10 +179,11 @@ async function addReview(resourceId, userId, rating, review) {
   await query(
     `UPDATE resources r
      SET status = 'flagged', is_flagged = 1,
-         moderation_reason = 'Low average rating; returned to faculty review queue'
+         moderation_reason = 'Average rating below 1.5; returned to faculty review queue',
+         reviewed_by = NULL, reviewed_at = NULL, review_note = NULL,
+         relevance_score = NULL, quality_score = NULL
      WHERE r.id = ?
-       AND (SELECT COUNT(*) FROM resource_reviews rr WHERE rr.resource_id = r.id) >= 3
-       AND (SELECT AVG(rr.rating) FROM resource_reviews rr WHERE rr.resource_id = r.id) < 2.5`,
+       AND (SELECT AVG(rr.rating) FROM resource_reviews rr WHERE rr.resource_id = r.id) < 1.5`,
     [resourceId]
   );
 }

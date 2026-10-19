@@ -108,7 +108,7 @@ async function getPendingRequests(userId) {
       p.anonymous_id as sender_anonymous_id
     FROM chat_requests r
     JOIN profiles p ON r.sender_id = p.user_id
-    WHERE r.receiver_id = ? AND r.status = 'pending'
+    WHERE r.receiver_id = ?
   `, [userId]);
 
   const [sent] = await query(`

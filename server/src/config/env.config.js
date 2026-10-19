@@ -61,6 +61,9 @@ const env = {
     refreshSecret: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
   },
+  // Keep this key stable; changing it prevents existing mood entries from being
+  // associated with their owners for personal history and resource recommendations.
+  moodDataSecret: process.env.MOOD_DATA_SECRET || process.env.JWT_SECRET,
 
   // Domain
   allowedEmailDomain: process.env.ALLOWED_EMAIL_DOMAIN || '',

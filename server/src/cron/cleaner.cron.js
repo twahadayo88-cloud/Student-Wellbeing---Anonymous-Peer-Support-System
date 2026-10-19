@@ -3,6 +3,7 @@ const { query } = require('../config/db.config');
 const logger = require('../utils/logger');
 const env = require('../config/env.config');
 const noticesService = require('../modules/notices/notices.service');
+const { getMoodSubjectId } = require('../modules/mood/moodIdentity');
 
 /**
  * PeerBridge — Cleaner Crons
@@ -136,7 +137,10 @@ function initCronJobs() {
         logger.audit('ACCOUNT_PURGE_STARTED', { action: 'GDPR_HARD_DELETE', targetCount: userIds.length });
 
         for (const uid of userIds) {
-          // Cascading deletes handled by DB
+          await query(
+            'DELETE FROM mood_entries WHERE mood_subject_id = ?',
+            [getMoodSubjectId(uid)]
+          );
           await query('DELETE FROM users WHERE id = ?', [uid]);
         }
         logger.audit('ACCOUNT_PURGE_COMPLETED', { action: 'GDPR_HARD_DELETE_COMPLETE', recordsDeleted: userIds.length });

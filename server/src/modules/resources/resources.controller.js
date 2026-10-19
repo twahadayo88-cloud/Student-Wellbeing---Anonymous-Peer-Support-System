@@ -154,8 +154,10 @@ const getFacultyQueue = asyncHandler(async (_req, res) => {
 
 const reviewResource = asyncHandler(async (req, res) => {
   const id = positiveId(req.params.id);
-  const { status, note } = req.body;
-  await resourcesService.reviewResource(id, req.user.user_id, status, note);
+  const { status, note, relevance_score: relevanceScore, quality_score: qualityScore } = req.body;
+  await resourcesService.reviewResource(
+    id, req.user.user_id, status, note, Number(relevanceScore), Number(qualityScore)
+  );
   return res.status(200).json({ success: true, message: `Resource ${status}.` });
 });
 

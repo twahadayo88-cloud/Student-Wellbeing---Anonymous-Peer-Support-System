@@ -108,35 +108,39 @@ export default function ComplaintReview() {
   return (
     <>
       <Navbar />
-      <main className="min-h-screen px-4 pb-12 pt-24 sm:px-6 lg:px-8">
+      <main className="min-h-screen px-4 pb-12 pt-24 sm:px-6 lg:px-8 bg-[#09090e]">
       <div className="mx-auto max-w-5xl space-y-6">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-surface-900 dark:text-white">{title}</h1>
-            <p className="mt-1 text-sm text-surface-500">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pink-500/10 border border-pink-500/20 text-pink-500 text-xs font-bold uppercase tracking-wider mb-2">
+              <History className="w-3.5 h-3.5" />
+              Administrative Trust Portal
+            </div>
+            <h1 className="text-3xl font-extrabold text-white">{title.replace('Complaints', '')} <span className="brand-text">Complaints</span></h1>
+            <p className="mt-1 text-sm text-surface-400">
               {isFaculty
-                ? 'Only complaints assigned to your account are shown.'
-                : 'Only escalated cases are shown. Reporter identities remain pseudonymous.'}
+                ? 'Only complaints assigned to your department/account are shown.'
+                : 'Escalated safety cases under Level 2 administration. Identity reveal requires dual-party validation.'}
             </p>
           </div>
-          <button type="button" onClick={load} disabled={loading} className="btn-secondary inline-flex items-center gap-2">
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          <button type="button" onClick={load} disabled={loading} className="btn-secondary text-xs inline-flex items-center gap-2">
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
           </button>
         </header>
 
-        {error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">{error}</div>}
+        {error && <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400">{error}</div>}
 
         {!isFaculty && pendingReveals.length > 0 && (
           <section className="space-y-3">
-            <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Pending Identity Approvals</h2>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-amber-400">Pending Identity Approvals</h2>
             {pendingReveals.map(item => (
-              <div key={item.record_id} className="glass-card flex flex-wrap items-center justify-between gap-4 p-4">
+              <div key={item.record_id} className="glass-card-brand flex flex-wrap items-center justify-between gap-4 p-5 rounded-2xl">
                 <div>
-                  <p className="text-sm font-semibold">Complaint #{item.complaint_id}</p>
-                  <p className="mt-1 text-xs text-surface-500">Justification: {item.justification}</p>
+                  <p className="text-sm font-mono font-bold text-white">Complaint #{item.complaint_id}</p>
+                  <p className="mt-1 text-xs text-surface-300">Justification: {item.justification}</p>
                 </div>
-                <button type="button" onClick={() => approveReveal(item.record_id)} className="btn-primary inline-flex items-center gap-2">
-                  <Eye className="h-4 w-4" /> Approve reveal
+                <button type="button" onClick={() => approveReveal(item.record_id)} className="btn-primary text-xs inline-flex items-center gap-2">
+                  <Eye className="h-4 w-4" /> Approve Reveal
                 </button>
               </div>
             ))}
@@ -144,29 +148,32 @@ export default function ComplaintReview() {
         )}
 
         {loading ? (
-          <div className="glass-card p-12 text-center text-surface-500">Loading complaints...</div>
+          <div className="glass-card p-12 text-center text-surface-400">
+            <div className="w-8 h-8 rounded-full border-2 border-pink-500 border-t-transparent animate-spin mx-auto mb-3" />
+            Loading review queue...
+          </div>
         ) : complaints.length === 0 ? (
-          <div className="glass-card p-12 text-center text-surface-500">No complaints in this queue.</div>
+          <div className="glass-card p-12 text-center text-surface-400">No complaints in this queue.</div>
         ) : (
           <div className="space-y-4">
             {complaints.map(item => (
-              <article key={item.id} className="glass-card space-y-4 border-l-4 border-l-amber-500 p-5">
+              <article key={item.id} className="glass-card space-y-4 border-l-4 border-l-pink-500 p-6 rounded-2xl border border-white/5 hover:border-pink-500/30 transition-all">
                 <header className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="font-semibold capitalize text-surface-900 dark:text-white">{item.category.replace(/_/g, ' ')}</p>
-                    <p className="mt-1 text-xs text-surface-500">
-                      Case #{item.id} · Reporter {item.reporter_anonymous_id || 'unavailable'} · Reported {item.reported_anonymous_id || 'content'}
+                    <p className="text-base font-bold capitalize text-white">{item.category.replace(/_/g, ' ')}</p>
+                    <p className="mt-1 text-xs font-mono text-surface-400">
+                      Case #{item.id} · Reporter <span className="text-pink-400">{item.reporter_anonymous_id || 'anonymous'}</span> · Reported <span className="text-amber-400">{item.reported_anonymous_id || 'content'}</span>
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    {item.is_flagged ? <span className="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">Priority review</span> : null}
-                    <span className="rounded-full bg-surface-100 px-2.5 py-1 text-xs font-semibold capitalize text-surface-600 dark:bg-surface-800 dark:text-surface-300">{item.status.replace(/_/g, ' ')}</span>
+                    {item.is_flagged ? <span className="rounded-full bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 text-xs font-bold text-rose-400">Priority review</span> : null}
+                    <span className="rounded-full bg-white/5 border border-white/10 px-2.5 py-1 text-xs font-mono font-semibold capitalize text-surface-300">{item.status.replace(/_/g, ' ')}</span>
                   </div>
                 </header>
 
-                <p className="whitespace-pre-wrap text-sm text-surface-700 dark:text-surface-300">{item.reason}</p>
-                {item.evidence_ref && <p className="text-xs text-surface-500">Evidence reference: {item.evidence_ref}</p>}
-                {item.faculty_note && <p className="rounded-lg bg-surface-50 p-3 text-xs text-surface-600 dark:bg-surface-800/60 dark:text-surface-300">Review note: {item.faculty_note}</p>}
+                <p className="whitespace-pre-wrap text-sm text-surface-200 leading-relaxed">{item.reason}</p>
+                {item.evidence_ref && <p className="text-xs font-mono text-surface-400">Evidence reference: {item.evidence_ref}</p>}
+                {item.faculty_note && <p className="rounded-xl bg-white/5 border border-white/5 p-3 text-xs text-surface-300">Review note: {item.faculty_note}</p>}
 
                 <textarea
                   rows={2}
@@ -174,33 +181,33 @@ export default function ComplaintReview() {
                   value={notes[item.id] || ''}
                   onChange={event => setNotes(current => ({ ...current, [item.id]: event.target.value }))}
                   placeholder={isFaculty ? 'Add a resolution, rejection, or escalation note' : 'Add a resolution or rejection note'}
-                  className="w-full rounded-lg border border-surface-200 bg-white/70 p-3 text-sm dark:border-surface-700 dark:bg-surface-900/60"
+                  className="w-full rounded-xl border border-white/10 bg-[#09090e] p-3 text-sm text-white outline-none focus:ring-2 focus:ring-pink-500 leading-relaxed"
                 />
 
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 pt-1">
                   {isFaculty ? (
                     <>
-                      <button type="button" onClick={() => review(item.id, 'resolve')} className="btn-secondary inline-flex items-center gap-2"><Check className="h-4 w-4" /> Resolve</button>
-                      <button type="button" onClick={() => review(item.id, 'reject')} className="btn-secondary inline-flex items-center gap-2"><X className="h-4 w-4" /> Reject</button>
-                      <button type="button" onClick={() => review(item.id, 'escalate')} className="btn-primary inline-flex items-center gap-2"><ArrowUpRight className="h-4 w-4" /> Escalate</button>
+                      <button type="button" onClick={() => review(item.id, 'resolve')} className="btn-secondary text-xs inline-flex items-center gap-2"><Check className="h-3.5 w-3.5 text-emerald-400" /> Resolve</button>
+                      <button type="button" onClick={() => review(item.id, 'reject')} className="btn-secondary text-xs inline-flex items-center gap-2"><X className="h-3.5 w-3.5 text-rose-400" /> Reject</button>
+                      <button type="button" onClick={() => review(item.id, 'escalate')} className="btn-primary text-xs inline-flex items-center gap-2"><ArrowUpRight className="h-3.5 w-3.5" /> Escalate</button>
                     </>
                   ) : (
                     <>
-                      <button type="button" onClick={() => resolve(item.id, 'resolve')} className="btn-secondary inline-flex items-center gap-2"><Check className="h-4 w-4" /> Resolve</button>
-                      <button type="button" onClick={() => resolve(item.id, 'reject')} className="btn-secondary inline-flex items-center gap-2"><X className="h-4 w-4" /> Reject</button>
+                      <button type="button" onClick={() => resolve(item.id, 'resolve')} className="btn-secondary text-xs inline-flex items-center gap-2"><Check className="h-3.5 w-3.5 text-emerald-400" /> Resolve</button>
+                      <button type="button" onClick={() => resolve(item.id, 'reject')} className="btn-secondary text-xs inline-flex items-center gap-2"><X className="h-3.5 w-3.5 text-rose-400" /> Reject</button>
                       {item.reported_anonymous_id && (
                         <button
                           type="button"
                           onClick={() => requestReveal(item.id)}
                           disabled={(justifications[item.id] || '').trim().length < 20}
-                          className="btn-secondary inline-flex items-center gap-2"
+                          className="btn-secondary text-xs inline-flex items-center gap-2 disabled:opacity-50"
                         >
-                          <Eye className="h-4 w-4" /> Request identity reveal
+                          <Eye className="h-3.5 w-3.5 text-pink-500" /> Request Identity Reveal
                         </button>
                       )}
                     </>
                   )}
-                  {!isFaculty && <button type="button" onClick={() => toggleAudit(item.id)} className="btn-secondary inline-flex items-center gap-2"><History className="h-4 w-4" /> {audits[item.id] ? 'Hide history' : 'View history'}</button>}
+                  {!isFaculty && <button type="button" onClick={() => toggleAudit(item.id)} className="btn-secondary text-xs inline-flex items-center gap-2"><History className="h-3.5 w-3.5" /> {audits[item.id] ? 'Hide History' : 'View Audit Trail'}</button>}
                 </div>
 
                 {!isFaculty && item.reported_anonymous_id && (
@@ -209,16 +216,16 @@ export default function ComplaintReview() {
                     maxLength={1000}
                     value={justifications[item.id] || ''}
                     onChange={event => setJustifications(current => ({ ...current, [item.id]: event.target.value }))}
-                    placeholder="Identity reveal justification (at least 20 characters)"
-                    className="w-full rounded-lg border border-surface-200 bg-white/70 p-3 text-sm dark:border-surface-700 dark:bg-surface-900/60"
+                    placeholder="Identity reveal justification (at least 20 characters required by safety charter)"
+                    className="w-full rounded-xl border border-white/10 bg-[#09090e] p-3 text-sm text-white outline-none focus:ring-2 focus:ring-pink-500"
                   />
                 )}
 
                 {audits[item.id] && (
-                  <ol className="space-y-2 border-t border-surface-200 pt-4 dark:border-surface-700">
+                  <ol className="space-y-2 border-t border-white/10 pt-4">
                     {audits[item.id].map(entry => (
-                      <li key={entry.id} className="text-xs text-surface-600 dark:text-surface-300">
-                        <span className="font-semibold">{entry.action}</span> · {new Date(entry.created_at).toLocaleString()} · {entry.details?.note || entry.details?.faculty_note || ''}
+                      <li key={entry.id} className="text-xs text-surface-400 font-mono">
+                        <span className="font-bold text-pink-400">{entry.action}</span> · {new Date(entry.created_at).toLocaleString()} · {entry.details?.note || entry.details?.faculty_note || ''}
                       </li>
                     ))}
                   </ol>

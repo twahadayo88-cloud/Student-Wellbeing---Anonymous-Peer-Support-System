@@ -1,131 +1,166 @@
-const { query } = require('../../config/db.config');
+const { query, pool } = require('../../config/db.config');
+const AppError = require('../../utils/AppError');
 const contentSafety = require('../../services/contentSafety.service');
+const { getMoodSubjectId } = require('./moodIdentity');
 
-/**
- * Prompt 2 — Mood & Wellbeing Tracker Service
- * ============================================
- * Constraints:
- *  - No crisis-trigger logic of any kind.
- *  - Free-text filtered for profanity before storage ONLY — no alert to any user/role.
- *  - Aggregated trends are Admin/Super Admin only.
- */
+const MIN_AGGREGATE_PARTICIPANTS = 5;
+
+async function assertMoodConsent(userId) {
+  const [rows] = await query(
+    `SELECT u.role, p.consent_mood_tracking
+     FROM users u
+     JOIN profiles p ON p.user_id = u.id
+     WHERE u.id = ?`,
+    [userId]
+  );
+  if (!rows.length || rows[0].role !== 'student') {
+    throw AppError.forbidden('Mood tracking is available to students only.');
+  }
+  if (!rows[0].consent_mood_tracking) {
+    throw AppError.forbidden('Enable mood-tracking consent before using mood features.');
+  }
+}
+
 class MoodService {
-  /**
-   * Submit a once-per-day mood check-in.
-   * If the user already checked in today, returns alreadyCheckedIn=true without inserting.
-   */
-  async submitCheckIn(userId, moodScore, rawNote) {
-    // One check-in per calendar day
-    const [existing] = await query(
-      'SELECT id FROM mood_entries WHERE user_id = ? AND DATE(created_at) = CURDATE()',
+  async getRecommendationContext(userId) {
+    const [profiles] = await query(
+      `SELECT u.role, p.consent_mood_tracking
+       FROM users u
+       JOIN profiles p ON p.user_id = u.id
+       WHERE u.id = ?`,
       [userId]
     );
-    if (existing.length > 0) {
-      return { id: existing[0].id, alreadyCheckedIn: true };
+    if (!profiles.length || profiles[0].role !== 'student') {
+      throw AppError.forbidden('Mood-based recommendations are available to students only.');
+    }
+    if (!profiles[0].consent_mood_tracking) {
+      return { consented: false, mood_score: null };
     }
 
-    let finalNote = rawNote ? rawNote.trim() : null;
+    const [moods] = await query(
+      `SELECT mood_score FROM mood_entries
+       WHERE mood_subject_id = ?
+       ORDER BY created_at DESC LIMIT 1`,
+      [getMoodSubjectId(userId)]
+    );
+    return {
+      consented: true,
+      mood_score: moods.length ? Number(moods[0].mood_score) : null,
+    };
+  }
 
-    // Profanity filter — storage only, no alerting of any kind
+  async submitCheckIn(userId, moodScore, rawNote) {
+    await assertMoodConsent(userId);
+    const moodSubjectId = getMoodSubjectId(userId);
+
+    let finalNote = rawNote ? rawNote.trim() : null;
     if (finalNote) {
       const safetyResult = await contentSafety.analyzeContent(finalNote);
       if (safetyResult.isFlagged) {
-        safetyResult.matchedTerms.forEach(term => {
+        for (const term of safetyResult.matchedTerms) {
           if (!term.startsWith('ai_flag_')) {
             const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            // Masking must match detection semantics (substring match), not word
-            // boundaries — e.g. "shitty" is detected via "shit" but missed by \bshit\b.
-            const regex = new RegExp(escapedTerm, 'gi');
-            finalNote = finalNote.replace(regex, '***');
+            finalNote = finalNote.replace(new RegExp(escapedTerm, 'gi'), '***');
           }
-        });
+        }
       }
     }
 
-    // Column is `notes` in the mood_entries table (not `note`)
-    const [result] = await query(
-      'INSERT INTO mood_entries (user_id, mood_score, notes) VALUES (?, ?, ?)',
-      [userId, moodScore, finalNote]
-    );
-    const insertId = result.insertId;
+    const connection = await pool.getConnection();
+    const lockName = `mood:${moodSubjectId.slice(0, 58)}`;
+    let lockAcquired = false;
+    try {
+      const [lockRows] = await connection.execute('SELECT GET_LOCK(?, 5) AS acquired', [lockName]);
+      lockAcquired = Number(lockRows[0]?.acquired) === 1;
+      if (!lockAcquired) {
+        throw new AppError('Unable to safely reserve today’s mood check-in. Please try again.', 503);
+      }
 
-    // Pattern detection for consecutive low entries (✅ kept per plan).
-    // LOW mood = score 1 or 2. NO alert, NO notification — personal tracking only.
-    // counselor_alerted is intentionally never set (crisis-trigger removed).
-    if (moodScore <= 2) {
-      // Find most recent prior entry to chain the count
-      const [prior] = await query(
+      const [existing] = await connection.execute(
+        'SELECT id FROM mood_entries WHERE mood_subject_id = ? AND DATE(created_at) = CURDATE() LIMIT 1',
+        [moodSubjectId]
+      );
+      if (existing.length) {
+        return { id: existing[0].id, alreadyCheckedIn: true };
+      }
+
+      const [profileRows] = await connection.execute(
+        `SELECT p.department
+         FROM profiles p JOIN users u ON u.id = p.user_id
+         WHERE p.user_id = ? AND u.role = 'student' AND p.consent_mood_tracking = 1`,
+        [userId]
+      );
+      if (!profileRows.length) {
+        throw AppError.forbidden('Mood-tracking consent is required.');
+      }
+
+      const [prior] = await connection.execute(
         `SELECT consecutive_low_count FROM mood_entries
-         WHERE user_id = ? AND id != ?
+         WHERE mood_subject_id = ?
          ORDER BY created_at DESC LIMIT 1`,
-        [userId, insertId]
+        [moodSubjectId]
       );
-      const priorLowCount = prior.length > 0 ? (prior[0].consecutive_low_count || 0) : 0;
-      const newCount = priorLowCount + 1;
-      await query(
-        'UPDATE mood_entries SET consecutive_low_count = ? WHERE id = ?',
-        [newCount, insertId]
-      );
-    } else {
-      // Score >= 3 resets the streak
-      await query(
-        'UPDATE mood_entries SET consecutive_low_count = 0 WHERE id = ?',
-        [insertId]
-      );
-    }
+      const consecutiveLowCount = moodScore <= 2
+        ? Number(prior[0]?.consecutive_low_count || 0) + 1
+        : 0;
 
-    return { id: insertId, alreadyCheckedIn: false };
+      const [result] = await connection.execute(
+        `INSERT INTO mood_entries
+           (mood_subject_id, department, mood_score, notes, consecutive_low_count)
+         VALUES (?, ?, ?, ?, ?)`,
+        [moodSubjectId, profileRows[0].department || null, moodScore, finalNote, consecutiveLowCount]
+      );
+      return { id: result.insertId, alreadyCheckedIn: false };
+    } finally {
+      try {
+        if (lockAcquired) {
+          await connection.execute('SELECT RELEASE_LOCK(?)', [lockName]);
+        }
+      } finally {
+        connection.release();
+      }
+    }
   }
 
-  /**
-   * Fetch a student's own mood history (default: last 30 days).
-   * Returns consecutive_low_count per entry so the student can see their own pattern.
-   * This value is NEVER sent to faculty or admins.
-   */
   async getHistory(userId, days = 30) {
+    await assertMoodConsent(userId);
     const [rows] = await query(
       `SELECT id, mood_score, notes, consecutive_low_count, created_at
        FROM mood_entries
-       WHERE user_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+       WHERE mood_subject_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
        ORDER BY created_at ASC`,
-      [userId, days]
+      [getMoodSubjectId(userId), days]
     );
     return rows;
   }
 
-  /**
-   * 7-day daily average for personal trend chart.
-   */
   async getTrendSummary(userId) {
+    await assertMoodConsent(userId);
     const [rows] = await query(
-      `SELECT DATE(created_at) as date, AVG(mood_score) as avg_score
+      `SELECT DATE(created_at) AS date, AVG(mood_score) AS avg_score
        FROM mood_entries
-       WHERE user_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+       WHERE mood_subject_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
        GROUP BY DATE(created_at)
        ORDER BY date ASC`,
-      [userId]
+      [getMoodSubjectId(userId)]
     );
     return rows;
   }
 
-  /**
-   * Check whether the student needs an in-app reminder.
-   * Returns { needsReminder: bool, missedDays: number }.
-   * NEVER sends push/SMS/email — in-app nudge only.
-   */
   async getReminderStatus(userId, threshold = 2) {
+    await assertMoodConsent(userId);
     const [rows] = await query(
-      `SELECT MAX(created_at) as last_checkin,
-              MAX(DATE(created_at) = CURDATE()) as checked_in_today
-       FROM mood_entries WHERE user_id = ?`,
-      [userId]
+      `SELECT MAX(created_at) AS last_checkin,
+              MAX(DATE(created_at) = CURDATE()) AS checked_in_today,
+              DATEDIFF(CURDATE(), DATE(MAX(created_at))) AS missed_days
+       FROM mood_entries WHERE mood_subject_id = ?`,
+      [getMoodSubjectId(userId)]
     );
     const lastCheckin = rows[0]?.last_checkin;
     if (!lastCheckin) {
       return { needsReminder: true, missedDays: null, checkedInToday: false };
     }
-    const diffMs = Date.now() - new Date(lastCheckin).getTime();
-    const missedDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const missedDays = Number(rows[0].missed_days);
     return {
       needsReminder: missedDays >= threshold,
       missedDays,
@@ -133,35 +168,31 @@ class MoodService {
     };
   }
 
-  /**
-   * Aggregated, fully anonymised department-level trends.
-   * Caller MUST be Admin or Super Admin — enforced by both route middleware
-   * and the controller. Individual user data is never exposed here.
-   */
   async getAggregatedTrendsByDepartment() {
     const [rows] = await query(
-      `SELECT p.department, DATE(m.created_at) as date, AVG(m.mood_score) as avg_score,
-              COUNT(m.id) as check_in_count
-      FROM mood_entries m
-      JOIN profiles p ON m.user_id = p.user_id
-      JOIN users u ON u.id = m.user_id AND u.role = 'student'
-       WHERE m.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-       GROUP BY p.department, DATE(m.created_at)
-       ORDER BY p.department ASC, date ASC`
+      `SELECT department, DATE(created_at) AS date,
+              AVG(mood_score) AS avg_score,
+              COUNT(*) AS check_in_count,
+              COUNT(DISTINCT mood_subject_id) AS participant_count
+       FROM mood_entries
+       WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+         AND department IS NOT NULL AND department <> ''
+       GROUP BY department, DATE(created_at)
+       HAVING COUNT(DISTINCT mood_subject_id) >= ?
+       ORDER BY department ASC, date ASC`,
+      [MIN_AGGREGATE_PARTICIPANTS]
     );
 
     const trends = {};
-    rows.forEach(row => {
-      if (!trends[row.department]) {
-        trends[row.department] = [];
-      }
+    for (const row of rows) {
+      if (!trends[row.department]) trends[row.department] = [];
       trends[row.department].push({
         date: row.date,
         avg_score: Number(row.avg_score),
-        check_in_count: row.check_in_count
+        check_in_count: Number(row.check_in_count),
+        participant_count: Number(row.participant_count)
       });
-    });
-
+    }
     return trends;
   }
 }

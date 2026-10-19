@@ -62,6 +62,11 @@ exports.getReminderStatus = asyncHandler(async (req, res) => {
   });
 });
 
+exports.getRecommendationContext = asyncHandler(async (req, res) => {
+  const context = await moodService.getRecommendationContext(req.user.user_id);
+  return res.status(200).json({ success: true, data: context });
+});
+
 exports.getAggregatedTrends = asyncHandler(async (req, res) => {
   // Double-check: restrictTo middleware already enforces this, but belt-and-braces.
   if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {

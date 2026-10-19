@@ -1,15 +1,22 @@
-import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { useState, useEffect, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { X, Sun, Moon, UserRound, GraduationCap, ShieldCheck, Trash2, Save, LogOut } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { ThemeContext } from '../context/ThemeContext';
+import Sidebar from '../components/layout/Sidebar';
 import Navbar from '../components/layout/Navbar';
-import Footer from '../components/layout/Footer';
+import PageHeader from '../components/layout/PageHeader';
 import useAuth from '../hooks/useAuth';
 import api from '../services/api';
 import { useSocket } from '../context/SocketContext';
+import BadgeDisplay from '../components/trust/BadgeDisplay';
 
 export default function Profile() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const { socket, isConnected, connError } = useSocket();
+  const { isDark, toggleTheme } = useContext(ThemeContext);
+  const isStudent = user?.role === 'student';
 
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -43,6 +50,11 @@ export default function Profile() {
 
   const isFaculty = profile?.role === 'faculty' || profile?.role === 'admin' || profile?.role === 'super_admin';
   const isAdminUI = user?.role === 'admin' || user?.role === 'super_admin';
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
 
   // ─── Hydrate form fields from profile ─────────────────────────────
   const hydrateFromProfile = (p) => {
@@ -191,26 +203,57 @@ export default function Profile() {
   if (loading) {
     return (
       <>
-        <Navbar />
-        <main className="min-h-screen pt-24 flex items-center justify-center">
+        {isStudent ? <Sidebar /> : <Navbar />}
+        <main className={`min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#09090e] ${isStudent ? 'ml-16 sm:ml-64' : 'pt-20'}`}>
           <div className="text-center space-y-4">
-            <div className="w-10 h-10 rounded-full border-4 border-primary-500 border-t-transparent animate-spin mx-auto" />
-            <p className="text-surface-500">
+            <div className="w-10 h-10 rounded-full border-4 border-pink-500 border-t-transparent animate-spin mx-auto" />
+            <p className="text-slate-500 dark:text-slate-400">
               {!isConnected && !socketReady
                 ? connError ? 'Connection lost — Reconnecting...' : 'Connecting...'
                 : 'Loading your profile...'}
             </p>
           </div>
         </main>
-        <Footer />
       </>
     );
   }
 
   return (
     <>
-      <Navbar />
-      <main className="min-h-screen pt-24 pb-12 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto">
+      {isStudent ? <Sidebar /> : <Navbar />}
+      <main className={`min-h-screen pb-16 bg-slate-50 dark:bg-[#09090e] ${isStudent ? 'ml-16 pt-4 sm:ml-64 sm:pt-6' : 'pt-20'}`}>
+        <div className="max-w-5xl mx-auto w-full px-4 sm:px-6">
+          <motion.div {...fadeUp()}>
+            <PageHeader
+              title={<>My <span className="brand-text">Profile</span></>}
+              subtitle="Manage your academic details, privacy, and account"
+              myId={profile?.anonymous_id}
+              tone="light"
+              actions={(
+                <div className="flex items-center gap-2">
+                  {isStudent && (
+                    <button
+                      type="button"
+                      onClick={toggleTheme}
+                      aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
+                      title={`Switch to ${isDark ? 'light' : 'dark'} mode`}
+                      className="flex h-10 w-10 items-center justify-center rounded-xl border-slate-200 bg-white text-slate-600 transition-colors hover:border-pink-300 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:border-pink-500/50"
+                    >
+                      {isDark ? <Sun size={17} /> : <Moon size={17} />}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border-red-200 bg-white px-3 text-xs font-bold text-red-600 transition-colors hover:bg-red-50 dark:border-red-500/30 dark:bg-white/5 dark:text-red-400 dark:hover:bg-red-500/10 sm:px-4 sm:text-sm"
+                  >
+                    <LogOut size={16} />
+                    <span className="hidden sm:inline">Log out</span>
+                  </button>
+                </div>
+              )}
+            />
+          </motion.div>
 
         {/* Reconnecting Banner */}
         {socketReady && !isConnected && (
@@ -220,24 +263,30 @@ export default function Profile() {
           </div>
         )}
 
-        <motion.div {...fadeUp()} className="mb-8">
-          <h1 className="text-3xl font-bold text-surface-900 dark:text-white">Profile Settings</h1>
-          <p className="text-surface-500 mt-1">Manage your academic and privacy preferences.</p>
-        </motion.div>
-
-        <motion.form {...fadeUp(0.1)} onSubmit={handleSave} className="space-y-8">
+        <motion.form {...fadeUp(0.1)} onSubmit={handleSave} className="space-y-6">
           {/* Identity Section */}
-          <section className="glass-card p-6">
-            <h2 className="text-lg font-bold text-surface-900 dark:text-white mb-6">Identity Verification</h2>
-            <div className="flex flex-wrap gap-4 items-center">
-              <div className="px-3 py-1.5 bg-surface-100 dark:bg-surface-800 rounded-lg">
-                <span className="text-[10px] uppercase font-bold text-surface-500 block">Identifier</span>
-                <span className="font-mono font-bold text-primary-500">{profile?.anonymous_id}</span>
+          <section className="rounded-3xl overflow-hidden border-slate-800 bg-gradient-to-r from-purple-900/40 via-slate-900 to-pink-900/40 p-6 md:p-8 shadow-2xl relative">
+            <div className="absolute -right-10 -top-16 h-48 w-48 rounded-full bg-pink-500/10 blur-3xl" />
+            <h2 className="relative text-lg font-extrabold text-white mb-5 tracking-tight flex items-center gap-2"><UserRound className="w-5 h-5 text-pink-400" /> Identity &amp; Verification</h2>
+            <div className="flex flex-wrap gap-5 items-center">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-pink-500/20 via-red-500/15 to-amber-500/20 border border-pink-500/30 overflow-hidden flex items-center justify-center shadow-md shadow-pink-500/20 shrink-0">
+                <img
+                  src={`https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(profile?.anonymous_id || 'PB')}&backgroundColor=transparent`}
+                  alt="avatar"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="space-y-1">
+                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block font-mono">
+                  Autonomous Handle
+                </span>
+                <span className="font-mono font-extrabold text-base sm:text-lg text-slate-900 dark:text-white">
+                  {profile?.anonymous_id}
+                </span>
               </div>
               {!isAdminUI && (
-                <div className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-100 dark:border-emerald-800/30">
-                  <span className="text-[10px] uppercase font-bold text-emerald-600 block">Community Badge</span>
-                  <span className="font-bold capitalize text-emerald-600">{profile?.badge_tier || 'bronze'}</span>
+                <div className="sm:ml-auto">
+                  <BadgeDisplay tier={profile?.badge_tier || 'bronze'} size="lg" />
                 </div>
               )}
             </div>
@@ -245,8 +294,8 @@ export default function Profile() {
 
           {/* Form Fields */}
           {!isAdminUI && (
-            <section className="glass-card p-6 space-y-6">
-              <h2 className="text-lg font-bold text-surface-900 dark:text-white mb-2">Academic Data</h2>
+            <section className="rounded-3xl border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#111118] space-y-6">
+              <h2 className="text-lg font-extrabold text-slate-900 dark:text-white mb-2 flex items-center gap-2"><GraduationCap className="w-5 h-5 text-pink-500" /> Academic Data</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  {isFaculty && (
                    <div className="md:col-span-2">
@@ -335,8 +384,8 @@ export default function Profile() {
           )}
 
           {!isAdminUI && (
-            <section className="glass-card p-6 space-y-4">
-                <h2 className="text-lg font-bold text-surface-900 dark:text-white mb-2">Privacy & Research Consent</h2>
+            <section className="rounded-3xl border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#111118] space-y-4">
+                <h2 className="text-lg font-extrabold text-slate-900 dark:text-white mb-2 flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-emerald-500" /> Privacy &amp; Research Consent</h2>
 
                 <label className="flex items-center gap-4 p-4 rounded-xl border border-surface-200 dark:border-surface-800 cursor-pointer hover:bg-surface-50 dark:hover:bg-surface-900 transition-colors">
                  <input
@@ -352,60 +401,68 @@ export default function Profile() {
                 </label>
 
                 <label className="flex items-center gap-4 p-4 rounded-xl border border-surface-200 dark:border-surface-800 cursor-pointer hover:bg-surface-50 dark:hover:bg-surface-900 transition-colors">
-                 <input
+                  <input
                     type="checkbox"
                     checked={consentAnalytics}
                     onChange={e => setConsentAnalytics(e.target.checked)}
-                    className="w-5 h-5 text-primary-600 rounded focus:ring-primary-500"
-                 />
-                 <div>
+                    className="w-5 h-5 text-pink-500 rounded focus:ring-pink-500"
+                  />
+                  <div>
                     <p className="text-sm font-bold text-surface-900 dark:text-white">Platform Usage Analytics</p>
-                    <p className="text-xs text-surface-500">Helps us optimize the platform based on how you use it.</p>
-                 </div>
+                    <p className="text-xs text-surface-500 dark:text-surface-400">Helps us optimize the platform based on anonymous usage.</p>
+                  </div>
                 </label>
             </section>
           )}
 
-          {error && <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-xl text-sm border border-red-100 dark:border-red-900/30">{error}</div>}
-          {success && <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 rounded-xl text-sm border border-emerald-100 dark:border-emerald-900/30">{success}</div>}
+          {error && (
+            <div className="p-4 bg-red-500/10 text-red-500 rounded-xl text-xs font-semibold border border-red-500/20">
+              {error}
+            </div>
+          )}
+          {success && (
+            <div className="p-4 bg-emerald-500/10 text-emerald-500 rounded-xl text-xs font-semibold border border-emerald-500/20">
+              {success}
+            </div>
+          )}
 
           {!isAdminUI && (
-            <button type="submit" disabled={saving} className="btn-primary w-full py-3 font-bold shadow-lg shadow-primary-500/20">
-              {saving ? 'Synchronizing Profile...' : 'Save All Preferences'}
+            <button type="submit" disabled={saving} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-pink-500 via-rose-500 to-amber-500 py-3.5 font-extrabold text-sm text-white shadow-xl shadow-pink-500/20 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60">
+              <Save className="w-4 h-4" /> {saving ? 'Saving profile…' : 'Save All Preferences'}
             </button>
           )}
         </motion.form>
 
           {!isAdminUI && (
-            <motion.section {...fadeUp(0.3)} className="mt-12 p-6 rounded-2xl border border-red-200 dark:border-red-900/30 bg-red-50/50 dark:bg-red-950/10">
-              <h2 className="text-lg font-bold text-red-600 mb-2">Terminate Account</h2>
+            <motion.section {...fadeUp(0.3)} className="mt-12 p-6 sm:p-7 rounded-2xl border border-red-500/30 bg-red-500/5 dark:bg-red-500/[0.03]">
+              <h2 className="text-base font-extrabold text-red-500 mb-2 flex items-center gap-2"><Trash2 className="w-4 h-4" /> Danger Zone — Terminate Account</h2>
               {profile?.deletion_scheduled_at ? (
-                <div className="bg-white dark:bg-surface-950 p-4 rounded-xl border border-red-200 mb-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="glass-card p-4 rounded-xl border border-red-500/30 mb-4 flex flex-col sm:flex-row items-center justify-between gap-4">
                   <div>
-                      <p className="text-sm font-bold text-red-600">Deletion Scheduled</p>
-                      <p className="text-xs text-surface-500">Account will be wiped on {new Date(profile.deletion_scheduled_at).toLocaleString()}</p>
+                      <p className="text-sm font-bold text-red-500">Deletion Scheduled</p>
+                      <p className="text-xs text-slate-400">Account will be wiped on {new Date(profile.deletion_scheduled_at).toLocaleString()}</p>
                   </div>
-                  <button onClick={handleCancelDeletion} disabled={saving} className="btn-primary bg-emerald-600 hover:bg-emerald-700 text-xs py-2 px-6">Restore Account</button>
+                  <button onClick={handleCancelDeletion} disabled={saving} className="btn-secondary text-xs py-2 px-6 font-bold text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/10">Restore Account</button>
                 </div>
               ) : (
                 <>
-                  <p className="text-xs text-surface-500 mb-6">Wipes all data according to GDPR 72-hour window. Type <strong>DELETE</strong> to confirm.</p>
+                  <p className="text-xs text-slate-400 mb-5">Permanent wipe of all profile records following GDPR compliance window. Type <strong className="text-red-400 font-mono">DELETE</strong> to proceed.</p>
                   <div className="flex flex-wrap gap-4">
-                    <input type="text" value={deleteInput} onChange={e => setDeleteInput(e.target.value)} className="input-field border-red-300 w-full sm:w-64" placeholder="Type DELETE" />
+                    <input type="text" value={deleteInput} onChange={e => setDeleteInput(e.target.value)} className="input-field border-red-500/30 w-full sm:w-64 font-mono text-sm" placeholder="Type DELETE" />
                     <button
                       onClick={handleDelete}
                       disabled={deleteInput !== 'DELETE' || isDeleting}
-                      className="btn-primary bg-red-600 hover:bg-red-700 disabled:opacity-30 flex-1 sm:flex-none py-2 px-8"
+                      className="btn-danger flex-1 sm:flex-none py-2.5 px-8 font-bold text-xs"
                     >
-                      {isDeleting ? 'Processing...' : 'Permanently Delete'}
+                      {isDeleting ? 'Deleting…' : 'Delete Account'}
                     </button>
                   </div>
                 </>
               )}
             </motion.section>
           )}
-        </main>
-      <Footer />
+        </div>
+      </main>
     </>
   );
 }

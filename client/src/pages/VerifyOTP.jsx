@@ -59,39 +59,48 @@ export default function VerifyOTP() {
   return (
     <>
       <Navbar />
-      <div className="min-h-screen flex items-center justify-center pt-16 px-4">
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/4 right-1/4 w-72 h-72 bg-primary-400/10 rounded-full blur-3xl" />
-          <div className="absolute bottom-1/4 left-1/4 w-72 h-72 bg-accent-400/10 rounded-full blur-3xl" />
-        </div>
+      <div className="min-h-screen flex items-center justify-center pt-20 pb-12 px-4 relative overflow-hidden bg-slate-50 dark:bg-[#09090e] transition-colors">
+        {/* Decorative Orbs */}
+        <div className="orb orb-pink -top-20 -left-20 pointer-events-none" />
+        <div className="orb orb-purple top-1/2 -right-24 pointer-events-none" />
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="relative w-full max-w-md"
+          className="relative w-full max-w-md z-10"
         >
-          <div className="glass-card p-8">
+          <div className="glass-card-brand p-8 sm:p-10 shadow-2xl relative overflow-hidden">
             <div className="text-center mb-8">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white font-bold text-lg mx-auto mb-4">
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-extrabold text-xl mx-auto mb-4 shadow-lg shadow-pink-500/30"
+                style={{ background: 'linear-gradient(135deg, #ec4899, #ef4444, #f59e0b)' }}
+              >
                 PB
               </div>
-              <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Verify Your Identity</h1>
-              <p className="text-surface-500 dark:text-surface-400 text-sm mt-1">
-                We&apos;ve sent a 6-digit code to <span className="font-medium text-surface-900 dark:text-surface-100">{email}</span>.
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                Verify Identity
+              </h1>
+              <p className="text-slate-500 dark:text-slate-400 text-sm mt-1.5 font-medium">
+                We sent a 6-digit code to{' '}
+                <span className="font-semibold text-slate-900 dark:text-white font-mono break-all">{email}</span>
               </p>
             </div>
 
             {error && (
-              <div className="mb-6 p-3 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded-lg text-sm border border-red-200 dark:border-red-800 flex items-start gap-2">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="mb-6 p-3.5 bg-red-500/10 dark:bg-red-500/15 text-red-600 dark:text-red-400 rounded-xl text-xs border border-red-500/30 font-medium flex items-start gap-2"
+              >
                 <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" />
                 <span>{error}</span>
-              </div>
+              </motion.div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <label htmlFor="otp-input" className="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1.5 text-center">
+                <label htmlFor="otp-input" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2 text-center">
                   Verification Code
                 </label>
                 <input
@@ -102,24 +111,33 @@ export default function VerifyOTP() {
                   autoFocus
                   value={otp}
                   onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, ''))}
-                  className="input-field text-center text-2xl tracking-[0.5em] font-bold"
+                  className="input-field text-center text-2xl tracking-[0.4em] font-mono font-bold py-3"
                   placeholder="000000"
                 />
               </div>
 
-              <div className="flex items-center justify-center gap-2 text-sm text-surface-500 dark:text-surface-400 bg-surface-50 dark:bg-surface-800/50 py-2 rounded-lg">
-                <Clock className="w-4 h-4" />
-                <span>Code expires in: <span className={`font-mono font-bold ${timeLeft < 60 ? 'text-red-500' : 'text-primary-500'}`}>{formatTime(timeLeft)}</span></span>
+              <div className="flex items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400 bg-slate-100/70 dark:bg-white/[0.04] border border-slate-200/60 dark:border-white/5 py-2.5 rounded-xl font-medium">
+                <Clock className="w-4 h-4 text-pink-500" />
+                <span>
+                  Code expires in:{' '}
+                  <span className={`font-mono font-bold ${timeLeft < 60 ? 'text-red-500' : 'text-pink-500'}`}>
+                    {formatTime(timeLeft)}
+                  </span>
+                </span>
               </div>
 
-              <button type="submit" className="btn-primary w-full" disabled={isLoading || timeLeft === 0}>
+              <button
+                type="submit"
+                className="btn-primary w-full py-3 text-sm font-bold tracking-wide"
+                disabled={isLoading || timeLeft === 0}
+              >
                 {isLoading ? 'Verifying...' : 'Verify OTP'}
               </button>
             </form>
 
-            <p className="text-center text-sm text-surface-500 dark:text-surface-400 mt-6">
+            <p className="text-center text-xs text-slate-500 dark:text-slate-400 mt-6 font-medium">
               Didn&apos;t receive the code?{' '}
-              <Link to="/forgot-password" className="text-primary-600 dark:text-primary-400 font-medium hover:underline">
+              <Link to="/forgot-password" className="text-pink-600 dark:text-pink-400 font-semibold hover:underline">
                 Resend Email
               </Link>
             </p>

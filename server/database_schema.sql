@@ -672,6 +672,8 @@ CREATE TABLE `resources` (
   `reviewed_by` int DEFAULT NULL,
   `reviewed_at` datetime DEFAULT NULL,
   `review_note` text,
+  `relevance_score` tinyint DEFAULT NULL,
+  `quality_score` tinyint DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),

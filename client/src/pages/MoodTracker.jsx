@@ -7,7 +7,8 @@ import { Meh, AlertCircle, CheckCircle2, Bell } from 'lucide-react';
 import api from '../services/api';
 import { toast } from 'react-hot-toast';
 import useAuth from '../hooks/useAuth';
-import Navbar from '../components/layout/Navbar';
+import Sidebar from '../components/layout/Sidebar';
+import PageHeader from '../components/layout/PageHeader';
 import Footer from '../components/layout/Footer';
 
 const MOOD_OPTIONS = [
@@ -48,13 +49,27 @@ const MoodTracker = () => {
   const [trendData, setTrendData] = useState([]);
   const [reminder, setReminder] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [moodConsent, setMoodConsent] = useState(null);
+  const [updatingConsent, setUpdatingConsent] = useState(false);
 
   const isStudent = user?.role === 'student';
   const [consecutiveLowEntries, setConsecutiveLowEntries] = useState(0);
 
   const fetchData = useCallback(async () => {
     if (!isStudent) return;
+    setLoading(true);
     try {
+      const profileRes = await api.get('/profile/me');
+      const hasConsent = Boolean(profileRes.data.data?.consent_mood_tracking);
+      setMoodConsent(hasConsent);
+      if (!hasConsent) {
+        setTrendData([]);
+        setReminder(null);
+        setCheckedInToday(false);
+        setConsecutiveLowEntries(0);
+        return;
+      }
+
       const [trendRes, reminderRes, fullHistoryRes] = await Promise.all([
         api.get('/mood/trend'),
         api.get('/mood/reminder'),
@@ -72,7 +87,7 @@ const MoodTracker = () => {
         setConsecutiveLowEntries(lastEntry.consecutive_low_count || 0);
       }
     } catch (err) {
-      // Non-blocking — don't toast on background fetch errors
+      toast.error(err.response?.data?.message || 'Unable to load your mood tracker.');
     } finally {
       setLoading(false);
     }
@@ -110,6 +125,33 @@ const MoodTracker = () => {
     }
   };
 
+  const handleConsent = async (enabled) => {
+    if (!enabled && !window.confirm('Withdraw mood-tracking consent and permanently delete your mood check-ins?')) {
+      return;
+    }
+    setUpdatingConsent(true);
+    try {
+      await api.patch('/profile/consent', { consent_mood_tracking: enabled });
+      setMoodConsent(enabled);
+      if (enabled) {
+        toast.success('Mood tracking enabled. Your check-ins are stored pseudonymously.');
+        await fetchData();
+      } else {
+        setTrendData([]);
+        setReminder(null);
+        setCheckedInToday(false);
+        setConsecutiveLowEntries(0);
+        setNote('');
+        setSelected(null);
+        toast.success('Consent withdrawn and your mood check-ins were deleted.');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not update mood-tracking consent.');
+    } finally {
+      setUpdatingConsent(false);
+    }
+  };
+
   if (!isStudent) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -123,168 +165,208 @@ const MoodTracker = () => {
 
   return (
     <>
-      <Navbar />
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 px-4 pt-28 pb-8">
-      <div className="max-w-2xl mx-auto space-y-8">
+      <Sidebar />
+      <div className="min-h-screen bg-slate-50 dark:bg-[#09090e] px-4 pt-6 pb-12 transition-colors relative ml-16 sm:ml-64">
+        <div className="max-w-2xl mx-auto w-full space-y-7 relative z-10">
 
-        {/* Header */}
-        <div>
-          <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white">
-            Mood &amp; Wellbeing
-          </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
-            Your individual check-ins stay private. Administrators see department-level aggregates only.
-          </p>
-        </div>
+          {/* PAGE HEADER (standardized) */}
+          <PageHeader
+            tone="light"
+            title={<span className="flex items-center gap-3"><span className="text-2xl">🌱</span> Mood &amp; Wellbeing</span>}
+            subtitle="Your private wellbeing check-ins"
+            myId={user?.anonymous_id}
+          />
 
-        {/* Reminder nudge */}
-        {reminder?.needsReminder && !checkedInToday && (
-          <div className="flex items-center gap-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-2xl px-5 py-4">
-            <Bell className="w-5 h-5 text-amber-500 shrink-0" />
-            <p className="text-sm text-amber-800 dark:text-amber-300">
-              {reminder.missedDays
-                ? `You haven't checked in for ${reminder.missedDays} day${reminder.missedDays > 1 ? 's' : ''}. How are you feeling today?`
-                : "This is your first check-in! Welcome 🎉"}
-            </p>
-          </div>
-        )}
-
-        {/* Personal pattern insight — visible only to the student, no alert, no notification */}
-        {consecutiveLowEntries >= 3 && (
-          <div className="flex items-start gap-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-2xl px-5 py-4">
-            <span className="text-xl shrink-0">💙</span>
-            <div>
-              <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">
-                You&apos;ve logged {consecutiveLowEntries} consecutive low-mood check-ins.
+          {moodConsent === false && (
+            <section className="glass-card rounded-3xl p-6 sm:p-7 space-y-4 border border-white/10 shadow-xl">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">Mood tracking is optional</h2>
+              <p className="text-sm text-slate-600 dark:text-slate-300">
+                If you opt in, your check-ins are stored under a keyed pseudonymous identifier, not your account ID.
+                This lets you view your own history and receive mood-based resource recommendations. The service can
+                associate your entries with your account to provide those personal features. Faculty cannot see
+                individual entries; department aggregates with fewer than five participants are hidden.
               </p>
-              <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
-                It&apos;s okay to have hard days. Take it one step at a time — you&apos;re not alone.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Check-in card */}
-        <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 space-y-6">
-          {checkedInToday ? (
-            <div className="flex flex-col items-center py-6 gap-3">
-              <CheckCircle2 className="w-14 h-14 text-green-500" />
-              <p className="text-lg font-bold text-gray-800 dark:text-white">Checked in today!</p>
-              <p className="text-sm text-gray-500">See you again tomorrow.</p>
-            </div>
-          ) : (
-            <>
-              <div>
-                <h2 className="text-lg font-bold text-gray-800 dark:text-white mb-4">
-                  How are you feeling right now?
-                </h2>
-                <div className="grid grid-cols-5 gap-2">
-                  {MOOD_OPTIONS.map(opt => (
-                    <button
-                      key={opt.score}
-                      onClick={() => setSelected(opt.score)}
-                      className={`flex flex-col items-center gap-1 p-3 rounded-2xl border-2 transition-all duration-200
-                        ${selected === opt.score
-                          ? `${opt.bg} ring-2 ${opt.ring} border-transparent scale-105 shadow-md`
-                          : 'border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600'
-                        }`}
-                    >
-                      <span className="text-3xl">{opt.emoji}</span>
-                      <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{opt.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Optional note <span className="text-gray-400 font-normal">(private, kept anonymous)</span>
-                </label>
-                <textarea
-                  rows={3}
-                  maxLength={500}
-                  className="w-full rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm px-4 py-3 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 transition"
-                  placeholder="Anything on your mind? (optional)"
-                  value={note}
-                  onChange={e => setNote(e.target.value)}
-                />
-                <p className="text-xs text-gray-400 text-right mt-1">{note.length}/500</p>
-              </div>
-
               <button
-                onClick={handleSubmit}
-                disabled={submitting || !selected}
-                className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm transition-all duration-200 active:scale-95"
+                type="button"
+                onClick={() => handleConsent(true)}
+                disabled={updatingConsent}
+                className="btn-primary px-5 py-3 rounded-xl font-semibold disabled:opacity-50"
               >
-                {submitting ? 'Saving…' : 'Submit Check-in'}
+                {updatingConsent ? 'Saving…' : 'I consent and want to enable mood tracking'}
               </button>
-            </>
+            </section>
           )}
-        </div>
 
-        {/* 7-day Trend Chart */}
-        <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-bold text-gray-800 dark:text-white mb-5">Your 7-Day Trend</h2>
-          {loading ? (
-            <div className="h-48 flex items-center justify-center">
-              <div className="w-8 h-8 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : trendData.length === 0 ? (
-            <div className="h-48 flex flex-col items-center justify-center gap-2">
-              <Meh className="w-10 h-10 text-gray-300" />
-              <p className="text-sm text-gray-400">No check-ins in the last 7 days.</p>
-            </div>
-          ) : (
-            <div className="h-52">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={trendData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(156,163,175,0.15)" />
-                  <XAxis
-                    dataKey="date"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 11, fill: '#9ca3af' }}
-                    tickFormatter={d => d?.slice(5)} // MM-DD
-                  />
-                  <YAxis
-                    domain={[1, 5]}
-                    ticks={[1, 2, 3, 4, 5]}
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 11, fill: '#9ca3af' }}
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Line
-                    type="monotone"
-                    dataKey="avg_score"
-                    stroke="#6366f1"
-                    strokeWidth={2.5}
-                    dot={{ r: 5, fill: '#6366f1', strokeWidth: 0 }}
-                    activeDot={{ r: 7 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+          {loading && moodConsent === null && (
+            <div className="glass-card rounded-3xl p-8 text-center text-slate-500">Loading mood settings…</div>
+          )}
+
+          {moodConsent && (
+            <>
+          {/* Reminder nudge */}
+          {reminder?.needsReminder && !checkedInToday && (
+            <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl px-5 py-4">
+              <Bell className="w-5 h-5 text-amber-500 shrink-0" />
+              <p className="text-xs sm:text-sm text-amber-700 dark:text-amber-300 font-medium">
+                {reminder.missedDays
+                  ? `You haven't checked in for ${reminder.missedDays} day${reminder.missedDays > 1 ? 's' : ''}. How are you feeling today?`
+                  : "Welcome to your first private daily check-in! 🎉"}
+              </p>
             </div>
           )}
 
-          {/* Score legend */}
-          <div className="mt-4 flex justify-between px-2">
-            {MOOD_OPTIONS.map(opt => (
-              <div key={opt.score} className="flex flex-col items-center gap-0.5">
-                <span className="text-base">{opt.emoji}</span>
-                <span className="text-xs text-gray-400">{opt.score}</span>
+          {/* Personal pattern insight */}
+          {consecutiveLowEntries >= 3 && (
+            <div className="flex items-start gap-3 bg-pink-500/10 border border-pink-500/20 rounded-2xl px-5 py-4">
+              <span className="text-xl shrink-0">💙</span>
+              <div>
+                <p className="text-xs sm:text-sm font-bold text-pink-600 dark:text-pink-300">
+                  You&apos;ve logged {consecutiveLowEntries} consecutive low-mood check-ins.
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  It&apos;s okay to have hard days. Check out our anonymous peer support channels — you&apos;re not alone.
+                </p>
               </div>
-            ))}
+            </div>
+          )}
+
+          {/* Check-in card */}
+          <div className="glass-card-brand rounded-3xl p-6 sm:p-7 space-y-6 border border-white/10 shadow-xl">
+            {checkedInToday ? (
+              <div className="flex flex-col items-center py-6 gap-3">
+                <div className="w-16 h-16 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-500 shadow-md shadow-emerald-500/20">
+                  <CheckCircle2 className="w-9 h-9" />
+                </div>
+                <p className="text-lg font-extrabold text-slate-900 dark:text-white">Checked in today!</p>
+                <p className="text-xs text-slate-400 font-medium">Thank you for caring for your mental wellbeing. See you tomorrow 👋</p>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white mb-4 tracking-tight">
+                    How are you feeling right now?
+                  </h2>
+                  <div className="grid grid-cols-5 gap-2 sm:gap-3">
+                    {MOOD_OPTIONS.map(opt => (
+                      <button
+                        key={opt.score}
+                        onClick={() => setSelected(opt.score)}
+                        className={`flex flex-col items-center gap-1.5 p-3 rounded-2xl border transition-all duration-200
+                          ${selected === opt.score
+                            ? 'bg-pink-500/15 border-pink-500/40 shadow-glow-pink scale-105'
+                            : 'border-slate-200/80 dark:border-white/5 hover:border-pink-500/30 hover:scale-102 bg-white/40 dark:bg-white/[0.02]'
+                          }`}
+                      >
+                        <span className="text-3xl">{opt.emoji}</span>
+                        <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
+                    Optional note <span className="text-slate-400 font-normal lowercase">(private & pseudonymous)</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    maxLength={500}
+                    className="input-field w-full text-xs sm:text-sm resize-none"
+                    placeholder="Anything on your mind? (optional reflections)"
+                    value={note}
+                    onChange={e => setNote(e.target.value)}
+                  />
+                  <p className="text-[10px] text-slate-400 text-right mt-1 font-mono">{note.length}/500</p>
+                </div>
+
+                <button
+                  onClick={handleSubmit}
+                  disabled={submitting || !selected}
+                  className="btn-primary w-full py-3.5 rounded-2xl font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-pink-500/20"
+                >
+                  {submitting ? 'Saving entry…' : 'Submit Check-in'}
+                </button>
+              </>
+            )}
           </div>
-        </div>
 
-        {/* Privacy note */}
-        <p className="text-center text-xs text-gray-400 dark:text-gray-500 pb-4">
-          Faculty cannot access mood data. Admin and Super Admin can view anonymized department-level trends only.
-        </p>
+          {/* 7-day Trend Chart */}
+          <div className="glass-card rounded-3xl p-6 sm:p-7 border border-white/10 shadow-xl">
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white mb-5 tracking-tight">
+              Your 7-Day Trend
+            </h2>
+            {loading ? (
+              <div className="h-48 flex items-center justify-center">
+                <div className="w-8 h-8 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : trendData.length === 0 ? (
+              <div className="h-48 flex flex-col items-center justify-center gap-2">
+                <Meh className="w-10 h-10 text-slate-400/40" />
+                <p className="text-xs text-slate-400">No check-ins in the last 7 days.</p>
+              </div>
+            ) : (
+              <div className="h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={trendData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.06)" />
+                    <XAxis
+                      dataKey="date"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 11, fill: '#94a3b8' }}
+                      tickFormatter={d => d?.slice(5)}
+                    />
+                    <YAxis
+                      domain={[1, 5]}
+                      ticks={[1, 2, 3, 4, 5]}
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 11, fill: '#94a3b8' }}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Line
+                      type="monotone"
+                      dataKey="avg_score"
+                      stroke="#ec4899"
+                      strokeWidth={3}
+                      dot={{ r: 5, fill: '#ef4444', strokeWidth: 2, stroke: '#ffffff' }}
+                      activeDot={{ r: 7, fill: '#ec4899' }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
 
+            {/* Score legend */}
+            <div className="mt-4 flex justify-between px-2 pt-3 border-t border-slate-100 dark:border-white/5">
+              {MOOD_OPTIONS.map(opt => (
+                <div key={opt.score} className="flex flex-col items-center gap-0.5">
+                  <span className="text-base">{opt.emoji}</span>
+                  <span className="text-[11px] text-slate-400 font-mono">{opt.score}</span>
+                </div>
+              ))}
             </div>
           </div>
+
+          {/* Privacy note */}
+          <div className="text-center space-y-3 pb-4">
+            <p className="text-[11px] text-slate-400 dark:text-slate-500">
+              Mood entries use a keyed pseudonymous identifier so your personal history and recommendations work.
+              Faculty cannot access individual logs. Admin aggregates hide department/day groups with fewer than five participants.
+            </p>
+            <button
+              type="button"
+              onClick={() => handleConsent(false)}
+              disabled={updatingConsent}
+              className="text-xs font-semibold text-rose-500 hover:text-rose-600 disabled:opacity-50"
+            >
+              Withdraw consent and delete my mood data
+            </button>
+          </div>
+          </>
+          )}
+        </div>
+      </div>
             <Footer />
           </>
         );

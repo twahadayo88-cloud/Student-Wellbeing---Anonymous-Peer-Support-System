@@ -58,7 +58,7 @@ async function moderateAcademicPost(title, description, userId) {
   const combinedText = `${title} ${description}`;
   
   const result = await safetyService.monitorContent(
-    combinedText, 'post', userId, null
+    combinedText, 'post', userId, null, { useAi: true }
   );
   
   if (result.severity === 'LOW') return { status: 'clean' };
@@ -170,10 +170,13 @@ async function getMyRequests(userId) {
 async function getAvailableHelpers(subject, excludeUserId) {
   const minTrustScore = _minTrustScore();
   const [helpers] = await query(`
-    SELECT hl.*, p.anonymous_id
+    SELECT p.anonymous_id, hl.subjects, hl.availability,
+      hl.max_concurrent_help, hl.current_help_count, p.semester,
+      p.trust_score, bt.current_tier AS badge_tier
     FROM helper_listings hl
     JOIN profiles p ON hl.user_id = p.user_id
     JOIN users u ON u.id = hl.user_id AND u.role = 'student'
+    LEFT JOIN badge_tiers bt ON bt.user_id = hl.user_id
     WHERE JSON_CONTAINS(hl.subjects, ?)
       AND hl.availability = 'available'
       AND hl.current_help_count < hl.max_concurrent_help
@@ -197,7 +200,7 @@ async function getAvailableHelpers(subject, excludeUserId) {
  * @param {object} requester  - { subjects: string[], semester: string|number }
  * @param {object} candidate  - DB row from the candidate query
  * @param {number} feedbackAdj - per-helper feedback adjustment, already capped
- * @returns {number} combined score [0, 1+cap]
+ * @returns {number} combined normalized score, with feedback applied in percentage points
  */
 function _scoreCandidate(requester, candidate, feedbackAdj) {
   const weightTotal = Object.values(MATCH_WEIGHTS).reduce((t, w) => t + Math.max(0, w), 0) || 1;
@@ -238,7 +241,7 @@ function _scoreCandidate(requester, candidate, feedbackAdj) {
     activityScore * Math.max(0, MATCH_WEIGHTS.activity)
   ) / weightTotal;
 
-  return baseScore + feedbackAdj;
+  return baseScore + feedbackAdj / 100;
 }
 
 /**

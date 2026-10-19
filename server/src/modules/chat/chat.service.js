@@ -33,6 +33,24 @@ async function createChatRequest(senderId, receiverAnonymousId, subjectContext) 
     throw AppError.conflict('A pending chat request already exists for this peer');
   }
 
+  // ─── Student AI Pipeline Verification (Touchpoint 1: Chat Request) ───
+  if (subjectContext && typeof subjectContext === 'string' && subjectContext.trim().length > 0) {
+    const safetyService = require('../safety/safety.service');
+    const safetyResult = await safetyService.monitorContent(
+      subjectContext,
+      'chat_request',
+      senderId,
+      null,
+      { useAi: true }
+    );
+    if (safetyResult.severity === 'HIGH' || safetyResult.severity === 'MEDIUM') {
+      logger.warn('Chat request blocked by AI content pipeline', { senderId, reason: safetyResult.reason });
+      throw AppError.badRequest(
+        `Chat request message contains inappropriate or off-topic content (${safetyResult.reason || 'moderation policy'}). Please revise.`
+      );
+    }
+  }
+
   const expiresAt = new Date();
   expiresAt.setHours(expiresAt.getHours() + 48);
 
@@ -211,12 +229,12 @@ async function getPendingRequests(userId) {
   await query('UPDATE chat_requests SET status = "expired" WHERE status = "pending" AND expires_at < NOW()');
 
   const [incoming] = await query(`
-    SELECT cr.id, cr.subject_context, cr.status, cr.created_at, p.anonymous_id as sender_anonymous_id
+    SELECT cr.id, cr.subject_context, cr.status, cr.created_at, cr.expires_at, p.anonymous_id as sender_anonymous_id
     FROM chat_requests cr
     JOIN profiles p ON cr.sender_id = p.user_id
     JOIN users sender_user ON sender_user.id = cr.sender_id AND sender_user.role = 'student'
     JOIN users receiver_user ON receiver_user.id = cr.receiver_id AND receiver_user.role = 'student'
-    WHERE cr.receiver_id = ? AND cr.status = "pending"
+    WHERE cr.receiver_id = ?
   `, [userId]);
 
   const [sent] = await query(`

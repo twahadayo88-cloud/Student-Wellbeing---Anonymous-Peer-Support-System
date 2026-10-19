@@ -17,22 +17,22 @@ export default function ChatBox({ peer, onClose, initialMode = 'chat_only', isIn
   const typingTimeoutRef = useRef(null);
   const [showFeedback, setShowFeedback] = useState(false);
   const messagesExchanged = messages.length > 0;
+  const hasConversation = Number.isInteger(Number(peer?.conversation_id)) && Number(peer?.conversation_id) > 0;
 
   useEffect(() => {
+    setMessages([]);
+    setInput('');
+    setError(null);
+    if (!hasConversation) return;
+
     // Load historical messages
     const fetchMessages = async () => {
-      // FIX: Strictly skip if we don't have a valid numeric conversation ID
-      // Anonymous IDs (like 'SilentFox') are used for identifying peers, NOT for fetching messages.
-      if (!peer?.conversation_id) {
-         console.warn('ChatBox: Skipping message fetch, no numeric conversation_id provided.');
-         return;
-      }
 
       try {
         const res = await api.get(`/communication/conversations/${peer.conversation_id}/messages`);
         if (res.data.success) {
           setMessages(res.data.data);
-          
+
           // Emit message_seen for any unread historical messages
           if (socket) {
             res.data.data.forEach(msg => {
@@ -50,24 +50,24 @@ export default function ChatBox({ peer, onClose, initialMode = 'chat_only', isIn
         setError('Connection failed: Unable to retrieve chat history.');
       }
     };
-    if (peer?.conversation_id) fetchMessages();
-  }, [peer, socket]);
+    if (hasConversation) fetchMessages();
+  }, [peer, socket, hasConversation]);
 
   useEffect(() => {
     if (!socket || !peer) return;
 
     const handleReceive = (data) => {
       if (data.sender_anonymous_id === peer.anonymous_id) {
-        setMessages((prev) => [...prev, { ...data, direction: 'peer' }]);
-        socket.emit('message_seen', { 
-          message_id: data.id, 
-          sender_anonymous_id: data.sender_anonymous_id 
+        setMessages((prev) => [...prev, { ...data, sender: data.sender_anonymous_id, direction: 'peer' }]);
+        socket.emit('message_seen', {
+          message_id: data.id,
+          sender_anonymous_id: data.sender_anonymous_id
         });
       }
     };
 
     const handleSent = (data) => {
-      setMessages((prev) => [...prev, { ...data, direction: 'me', seen_at: null }]);
+      setMessages((prev) => [...prev, { ...data, sender: data.sender_anonymous_id, direction: 'me', seen_at: null }]);
       setInput(''); // clear input after successfully sent
     };
 
@@ -121,7 +121,12 @@ export default function ChatBox({ peer, onClose, initialMode = 'chat_only', isIn
   const handleSend = (e) => {
     e.preventDefault();
     if (!input.trim() || !socket) return;
+    if (!hasConversation) {
+      setError('This chat is not active yet. Wait for the request to be accepted.');
+      return;
+    }
     socket.emit('send_message', {
+      conversation_id: peer.conversation_id,
       receiver_anonymous_id: peer.anonymous_id,
       message: input,
       chat_mode: initialMode
@@ -154,7 +159,7 @@ export default function ChatBox({ peer, onClose, initialMode = 'chat_only', isIn
   const typingStopTimeoutRef = useRef(null);
   const handleInputChange = (e) => {
     setInput(e.target.value);
-    if (socket && peer?.anonymous_id) {
+    if (socket && hasConversation && peer?.anonymous_id) {
       socket.emit('typing_start', { receiver_anonymous_id: peer.anonymous_id });
       clearTimeout(typingStopTimeoutRef.current);
       typingStopTimeoutRef.current = setTimeout(() => {
@@ -165,98 +170,118 @@ export default function ChatBox({ peer, onClose, initialMode = 'chat_only', isIn
 
   if (!peer) return null;
 
+  const dicebearUrl = peer.anonymous_id
+    ? `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(peer.anonymous_id)}&backgroundColor=transparent`
+    : null;
+
   return (
     <motion.div
       initial={isInline ? { opacity: 0 } : { opacity: 0, y: 20, scale: 0.95 }}
       animate={isInline ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
       exit={isInline ? { opacity: 0 } : { opacity: 0, y: 20, scale: 0.95 }}
-      className={`${
-        isInline 
-          ? 'relative w-full h-full' 
-          : 'fixed bottom-4 right-4 sm:bottom-6 sm:right-6 w-[350px] shadow-2xl z-50 h-[500px] border border-surface-200 dark:border-surface-700 rounded-2xl'
-      } glass-card overflow-hidden flex flex-col`}
+      className={`flex flex-col overflow-hidden ${
+        isInline
+          ? 'relative w-full h-full min-w-0 flex-1 bg-slate-50 dark:bg-[#0d0d14]'
+          : 'fixed bottom-4 right-4 sm:bottom-6 sm:right-6 w-[360px] shadow-2xl z-50 h-[520px] rounded-2xl bg-slate-100 dark:bg-[#111118] border border-slate-200 dark:border-white/10'
+      }`}
     >
-      {/* Header */}
-      <div className="bg-primary-600 px-4 py-3 flex items-center justify-between shadow-sm">
+      {/* Brand Header — sticky inside right container */}
+      <div
+        className="sticky top-0 z-10 px-4 py-3 flex items-center justify-between bg-slate-100 dark:bg-[#111118] border-b border-slate-200 dark:border-slate-800 transition-colors"
+      >
         <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm">
-            {peer.anonymous_id?.substring(0, 2).toUpperCase()}
+          <div className="w-9 h-9 rounded-xl bg-white dark:bg-[#09090e] border border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+            {dicebearUrl ? (
+              <img src={dicebearUrl} alt={peer.anonymous_id} className="w-full h-full object-cover" />
+            ) : (
+              <span className="font-mono font-bold text-xs">{peer.anonymous_id?.substring(0, 2).toUpperCase()}</span>
+            )}
           </div>
           <div>
-            <h3 className="text-white font-medium text-sm">Peer #{peer.anonymous_id?.substring(0, 4)}</h3>
+            <div className="flex items-center gap-1.5">
+            <h3 className="text-slate-900 dark:text-white font-extrabold text-sm tracking-tight font-mono">
+              {peer.anonymous_id}
+            </h3>
+              <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span>
+            </div>
             {isTyping ? (
-              <p className="text-[10px] text-emerald-300 font-bold tracking-wider animate-pulse">typing...</p>
+              <p className="text-[11px] text-pink-500 dark:text-pink-400 font-bold tracking-wider animate-pulse">typing...</p>
             ) : (
-              <p className="text-[10px] text-primary-100 font-bold uppercase tracking-wider">{initialMode.replace('_', ' ')}</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider truncate max-w-[220px]">
+                {[peer.department, peer.semester ? `Sem ${peer.semester}` : null].filter(Boolean).join(' · ') ||
+                  initialMode.replace('_', ' ')}
+              </p>
             )}
           </div>
         </div>
-        <div className="flex items-center space-x-2">
-          <button 
+        <div className="flex items-center space-x-1 text-slate-500 dark:text-slate-400">
+          <button
             onClick={handleReport}
             title="Report User"
-            className="text-white/60 hover:text-white transition-colors p-1"
+            className="hover:text-pink-500 dark:hover:text-white transition-colors p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-white/10"
           >
             <Flag className="w-4 h-4" />
           </button>
-          <button 
+          <button
             onClick={handleBlock}
             title="Block User"
-            className="text-white/60 hover:text-white transition-colors p-1"
+            className="hover:text-pink-500 dark:hover:text-white transition-colors p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-white/10"
           >
             <Ban className="w-4 h-4" />
           </button>
-          <button 
+          <button
             onClick={() => {
               if (messagesExchanged) {
                 setShowFeedback(true);
               } else {
                 onClose();
               }
-            }} 
-            className="text-white/80 hover:text-white transition-colors p-1"
+            }}
+            className="hover:text-pink-500 dark:hover:text-white transition-colors p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-white/10"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
       </div>
 
-      <FeedbackModal 
-        isOpen={showFeedback} 
-        onClose={onClose} 
-        peerAnonymousId={peer.anonymous_id} 
+      <FeedbackModal
+        isOpen={showFeedback}
+        onClose={onClose}
+        peerAnonymousId={peer.anonymous_id}
         conversationId={peer.conversation_id}
       />
 
       {!isConnected && (
         <div className="bg-amber-500 text-white text-[11px] text-center py-1 font-semibold flex flex-col">
-          <span>Connecting to secure server...</span>
+          <span>Connecting to secure channel...</span>
           {connError && <span className="opacity-80 font-normal">{connError}</span>}
         </div>
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 bg-surface-50 dark:bg-surface-900/50 space-y-3">
+      <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-4 space-y-4 bg-slate-50 dark:bg-[#0d0d14] transition-colors">
         {messages.map((msg, idx) => {
-          const isMe = msg.direction === 'me';
+          const isMe = msg.direction === 'me' || msg.sender === user?.anonymous_id;
           return (
             <div key={idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
               <div
-                className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm ${
+                className={`max-w-[75%] rounded-2xl p-3.5 text-xs sm:text-sm leading-relaxed shadow-md ${
                   isMe
-                    ? 'bg-primary-500 text-white rounded-br-none'
-                    : 'bg-white dark:bg-surface-800 text-surface-900 dark:text-surface-100 rounded-bl-none shadow-sm'
+                    ? 'ml-auto text-right bg-gradient-to-r from-pink-500 via-rose-500 to-amber-500 text-white rounded-tr-none'
+                    : 'mr-auto text-left bg-slate-200 dark:bg-[#1c1c28] border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-gray-200 rounded-tl-none'
                 }`}
               >
-                {msg.message}
-                <div className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${isMe ? 'text-primary-100' : 'text-surface-400'}`}>
-                  <span>{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                {msg.message || msg.text}
+                <div className={`text-[10px] mt-1.5 flex items-center justify-end gap-1 ${isMe ? 'text-pink-100' : 'text-slate-500'}`}>
+                  {msg.timestamp && (
+                    <span>{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  )}
                   {isMe && (
                     msg.seen_at
-                      ? <CheckCheck className="w-3.5 h-3.5 text-sky-300" />
-                      : <Check className="w-3.5 h-3.5 text-primary-200/70" />
+                      ? <CheckCheck className="w-3.5 h-3.5 text-sky-200" />
+                      : <Check className="w-3.5 h-3.5 text-pink-200/70" />
                   )}
                 </div>
               </div>
@@ -265,10 +290,10 @@ export default function ChatBox({ peer, onClose, initialMode = 'chat_only', isIn
         })}
         {isTyping && (
           <div className="flex justify-start">
-             <div className="bg-white dark:bg-surface-800 text-surface-500 rounded-2xl rounded-bl-none px-4 py-2 text-sm shadow-sm flex items-center space-x-1">
-                <span className="animate-bounce inline-block">.</span>
-                <span className="animate-bounce inline-block" style={{ animationDelay: '0.2s' }}>.</span>
-                <span className="animate-bounce inline-block" style={{ animationDelay: '0.4s' }}>.</span>
+             <div className="bg-slate-200 dark:bg-[#1c1c28] border border-slate-300 dark:border-slate-800/80 text-pink-500 rounded-2xl rounded-tl-none px-4 py-2.5 text-sm shadow-sm flex items-center space-x-1.5">
+                <span className="w-2 h-2 rounded-full bg-pink-500 animate-bounce inline-block"></span>
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-bounce inline-block" style={{ animationDelay: '0.2s' }}></span>
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-bounce inline-block" style={{ animationDelay: '0.4s' }}></span>
              </div>
           </div>
         )}
@@ -282,7 +307,7 @@ export default function ChatBox({ peer, onClose, initialMode = 'chat_only', isIn
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="bg-red-500 text-white text-xs px-4 py-2 text-center"
+            className="bg-red-500/90 text-white text-xs px-4 py-2 text-center font-medium backdrop-blur-md"
           >
             {error}
           </motion.div>
@@ -290,22 +315,20 @@ export default function ChatBox({ peer, onClose, initialMode = 'chat_only', isIn
       </AnimatePresence>
 
       {/* Input */}
-      <form onSubmit={handleSend} className="p-3 bg-white dark:bg-surface-800 border-t border-surface-200 dark:border-surface-700 flex items-center space-x-2">
+      <form onSubmit={handleSend} className="p-3 shrink-0 bg-slate-100 dark:bg-[#111118] border-t border-slate-200 dark:border-slate-800 flex items-center gap-2 transition-colors">
         <input
           type="text"
           value={input}
           onChange={handleInputChange}
-          placeholder="Type an anonymous message..."
-          className="flex-1 bg-surface-100 dark:bg-surface-900 border-none rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-primary-500 outline-none text-surface-900 dark:text-surface-100"
+          placeholder={`Message ${peer.anonymous_id}...`}
+          className="flex-1 min-w-0 bg-white dark:bg-[#09090e] border border-slate-300 dark:border-slate-800 text-xs px-4 py-3 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-pink-500 transition-colors"
         />
         <button
           type="submit"
-          disabled={!input.trim()}
-          className="bg-primary-500 hover:bg-primary-600 disabled:bg-surface-300 dark:disabled:bg-surface-700 text-white w-9 h-9 rounded-full flex items-center justify-center transition-colors"
+          disabled={!input.trim() || !hasConversation}
+          className="px-5 py-3 bg-gradient-to-r from-pink-500 to-purple-600 rounded-xl text-xs font-bold text-white hover:opacity-90 transition-opacity flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed shadow-md shadow-pink-500/20"
         >
-          <svg className="w-4 h-4 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-          </svg>
+          Send
         </button>
       </form>
     </motion.div>

@@ -221,9 +221,15 @@ function initSocket(httpServer) {
           return socket.emit('message_error', { error: 'Message blocked by recipient.' });
         }
 
-        // AI Moderation & Pipeline Monitoring
+        // AI Moderation & Pipeline Monitoring (Touchpoint 2: Student Chat Messages)
         const safetyService = require('../modules/safety/safety.service');
-        const moderationResult = await safetyService.monitorContent(message, 'message', socket.userId);
+        const moderationResult = await safetyService.monitorContent(
+          message,
+          'message',
+          socket.userId,
+          null,
+          { useAi: true }
+        );
 
         if (moderationResult.severity === 'HIGH') {
           logger.audit(AUDIT_ACTIONS.MESSAGE_FLAGGED, {
