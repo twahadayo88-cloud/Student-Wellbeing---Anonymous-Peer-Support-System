@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, Filter, BookOpen, Users, Star, GraduationCap, CheckCircle, ArrowLeft } from 'lucide-react';
+import { Plus, Search, Filter, BookOpen, Users, Star, GraduationCap, CheckCircle } from 'lucide-react';
 import Sidebar from '../components/layout/Sidebar';
 import Navbar from '../components/layout/Navbar';
 import PageHeader from '../components/layout/PageHeader';
@@ -140,19 +139,6 @@ const AcademicBoard = () => {
       {isAdmin ? <Navbar /> : <Sidebar />}
       <main className={`min-h-screen px-4 pb-16 sm:px-6 lg:px-8 relative ${isAdmin ? 'pt-24' : 'ml-16 pt-6 sm:ml-64'}`}>
         <div className="max-w-5xl mx-auto w-full">
-        {/* Back navigation */}
-        <div className="mb-2">
-          <Link
-            to="/dashboard"
-            className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-pink-500 dark:hover:text-pink-400 transition-colors group"
-          >
-            <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200/60 dark:border-white/10 flex items-center justify-center group-hover:border-pink-500/30 transition-colors">
-              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-            </div>
-            <span>Back to Dashboard</span>
-          </Link>
-        </div>
-
         {/* PAGE HEADER (standardized) */}
         <PageHeader
           title={

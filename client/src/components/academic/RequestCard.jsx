@@ -62,8 +62,8 @@ const RequestCard = ({ request, onOfferHelp, onViewDetail, isHelper }) => {
         </p>
       </div>
 
-      <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-white/5">
-        <div className="flex items-center space-x-2 text-xs">
+      <div className="flex flex-col items-stretch gap-3 pt-4 border-t border-slate-100 dark:border-white/5">
+        <div className="flex min-w-0 items-center space-x-2 text-xs">
           <div className="w-6 h-6 rounded-lg bg-pink-500/10 border border-pink-500/20 overflow-hidden flex items-center justify-center shrink-0">
             {dicebearUrl ? (
               <img src={dicebearUrl} alt={request.anonymous_id} className="w-full h-full object-cover" />
@@ -71,7 +71,7 @@ const RequestCard = ({ request, onOfferHelp, onViewDetail, isHelper }) => {
               <span className="font-mono text-[9px] text-pink-500">PB</span>
             )}
           </div>
-          <span className="font-mono text-slate-700 dark:text-slate-300 font-semibold text-xs">
+          <span className="min-w-0 truncate font-mono text-slate-700 dark:text-slate-300 font-semibold text-xs">
             @{request.anonymous_id}
           </span>
           {request.badge_tier && (
@@ -86,7 +86,7 @@ const RequestCard = ({ request, onOfferHelp, onViewDetail, isHelper }) => {
               onOfferHelp(request.id);
             }}
             disabled={request.status !== 'open'}
-            className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+            className={`flex w-full items-center justify-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
               request.status === 'open' 
                 ? 'btn-primary' 
                 : 'bg-slate-200/50 text-slate-400 cursor-not-allowed dark:bg-white/5'

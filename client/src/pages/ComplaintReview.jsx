@@ -7,6 +7,37 @@ import Sidebar from '../components/layout/Sidebar';
 import Navbar from '../components/layout/Navbar';
 import Footer from '../components/layout/Footer';
 
+const demoFacultyComplaints = [
+  {
+    id: 'DEMO-01',
+    category: 'academic_dispute',
+    reason: 'A group-project contribution disagreement needs a neutral review. Both students have been asked to share their perspective.',
+    status: 'under_review',
+    is_flagged: false,
+    reporter_anonymous_id: 'CalmOwl#2041',
+    reported_anonymous_id: 'BrightFox#7812',
+  },
+  {
+    id: 'DEMO-02',
+    category: 'privacy_violation',
+    reason: 'A student reports that a private message was shared with classmates without permission.',
+    status: 'open',
+    is_flagged: true,
+    reporter_anonymous_id: 'QuietPanda#3560',
+    reported_anonymous_id: 'KindHawk#9124',
+    evidence_ref: 'Sample evidence reference',
+  },
+  {
+    id: 'DEMO-03',
+    category: 'abusive_language',
+    reason: 'A student requests help addressing repeated disrespectful comments in a class discussion.',
+    status: 'under_review',
+    is_flagged: false,
+    reporter_anonymous_id: 'BlueKoala#6385',
+    reported_anonymous_id: 'SwiftDeer#4729',
+  },
+];
+
 export default function ComplaintReview() {
   const { user } = useAuth();
   const isFaculty = user?.role === 'faculty';
@@ -105,6 +136,8 @@ export default function ComplaintReview() {
   }
 
   const title = isFaculty ? 'Assigned Complaints' : 'Escalated Complaints';
+  const showingDemoComplaints = isFaculty && !loading && !error && complaints.length === 0;
+  const visibleComplaints = showingDemoComplaints ? demoFacultyComplaints : complaints;
 
   return (
     <>
@@ -153,11 +186,16 @@ export default function ComplaintReview() {
             <div className="w-8 h-8 rounded-full border-2 border-pink-500 border-t-transparent animate-spin mx-auto mb-3" />
             Loading review queue...
           </div>
-        ) : complaints.length === 0 ? (
+        ) : visibleComplaints.length === 0 ? (
           <div className="glass-card p-12 text-center text-surface-400">No complaints in this queue.</div>
         ) : (
           <div className="space-y-4">
-            {complaints.map(item => (
+            {showingDemoComplaints && (
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                Demo data only: these sample complaints are fictional and read-only. No real complaints are currently assigned to you.
+              </div>
+            )}
+            {visibleComplaints.map(item => (
               <article key={item.id} className="glass-card space-y-4 border-l-4 border-l-pink-500 p-6 rounded-2xl border border-white/5 hover:border-pink-500/30 transition-all">
                 <header className="flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -167,6 +205,7 @@ export default function ComplaintReview() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
+                    {showingDemoComplaints && <span className="rounded-full bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 text-xs font-bold text-amber-300">Demo</span>}
                     {item.is_flagged ? <span className="rounded-full bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 text-xs font-bold text-rose-400">Priority review</span> : null}
                     <span className="rounded-full bg-white/5 border border-white/10 px-2.5 py-1 text-xs font-mono font-semibold capitalize text-surface-300">{item.status.replace(/_/g, ' ')}</span>
                   </div>
@@ -176,6 +215,8 @@ export default function ComplaintReview() {
                 {item.evidence_ref && <p className="text-xs font-mono text-surface-400">Evidence reference: {item.evidence_ref}</p>}
                 {item.faculty_note && <p className="rounded-xl bg-white/5 border border-white/5 p-3 text-xs text-surface-300">Review note: {item.faculty_note}</p>}
 
+                {!showingDemoComplaints && (
+                  <>
                 <textarea
                   rows={2}
                   maxLength={1000}
@@ -230,6 +271,8 @@ export default function ComplaintReview() {
                       </li>
                     ))}
                   </ol>
+                )}
+                  </>
                 )}
               </article>
             ))}
