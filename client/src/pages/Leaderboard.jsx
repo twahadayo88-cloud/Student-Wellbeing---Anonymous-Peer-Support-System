@@ -5,12 +5,14 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from '../components/layout/Sidebar';
+import Navbar from '../components/layout/Navbar';
 import PageHeader from '../components/layout/PageHeader';
 import BadgeDisplay from '../components/trust/BadgeDisplay';
 import useAuth from '../hooks/useAuth';
 
 const Leaderboard = () => {
   const { user } = useAuth();
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -65,8 +67,8 @@ const Leaderboard = () => {
 
   return (
     <>
-      <Sidebar />
-      <main className="min-h-screen pb-0 px-0 w-full flex bg-slate-50 dark:bg-[#09090e] transition-colors ml-16 sm:ml-64">
+      {isAdmin ? <Navbar /> : <Sidebar />}
+      <main className={`min-h-screen pb-0 px-0 w-full flex bg-slate-50 dark:bg-[#09090e] transition-colors ${isAdmin ? 'pt-16' : 'ml-16 sm:ml-64'}`}>
 
         {/* ─── MAIN CONTENT AREA ─── */}
         <div className="flex-1 h-screen overflow-y-auto bg-slate-50/50 dark:bg-[#09090e]">

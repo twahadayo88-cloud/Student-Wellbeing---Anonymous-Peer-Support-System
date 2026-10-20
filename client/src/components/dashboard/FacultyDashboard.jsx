@@ -4,7 +4,6 @@ import { motion } from 'framer-motion';
 import { 
   ShieldCheck, 
   BookOpen, 
-  Bell, 
   TrendingUp, 
   Clock, 
   CheckCircle2, 
@@ -40,6 +39,8 @@ export default function FacultyDashboard({ user }) {
 
       if (profileRes.status === 'fulfilled') {
         setProfile(profileRes.value.data?.data || null);
+      } else {
+        toast.error('Could not load your faculty profile. Please refresh to try again.');
       }
       if (complaintsRes.status === 'fulfilled') {
         setComplaints(complaintsRes.value.data?.data || []);
@@ -63,6 +64,10 @@ export default function FacultyDashboard({ user }) {
   useEffect(() => {
     loadFacultyData();
   }, []);
+
+  const facultyName = [profile?.name, profile?.full_name, user?.name]
+    .find((name) => typeof name === 'string' && name.trim() && name.trim().toLowerCase() !== 'anonymous faculty')
+    ?.trim() || 'Respected Faculty Member';
 
   const fadeUp = (delay = 0) => ({
     initial: { opacity: 0, y: 15 },
@@ -119,66 +124,90 @@ export default function FacultyDashboard({ user }) {
 
   return (
     <div className="space-y-8 pb-12">
-      {/* ─── Faculty Welcome & Identity Banner ─── */}
-      <motion.div 
-        {...fadeUp(0)} 
-        className="relative overflow-hidden rounded-3xl glass-card-brand text-white p-6 sm:p-8 shadow-2xl border border-white/10"
+      <motion.section
+        {...fadeUp(0)}
+        className="relative isolate overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-r from-purple-50 via-white to-pink-50 p-6 shadow-xl dark:border-slate-800 dark:from-purple-950/80 dark:via-slate-950 dark:to-pink-950/70 dark:shadow-2xl sm:p-8"
       >
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pink-500/10 border border-pink-500/20 text-xs font-bold tracking-wide text-pink-400">
-              <UserCheck className="w-3.5 h-3.5 text-pink-400" />
-              FACULTY &amp; DEPARTMENT ANNOUNCEMENTS PORTAL
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-              Welcome, <span className="brand-text">{profile?.name || user?.name || 'Respected Faculty Member'}</span>
+        <div className="pointer-events-none absolute -right-16 -top-24 h-72 w-72 rounded-full bg-pink-500/15 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-32 right-1/3 h-64 w-64 rounded-full bg-purple-500/15 blur-3xl" />
+        <div className="relative z-10 flex flex-col justify-between gap-8 lg:flex-row lg:items-center">
+          <div className="min-w-0 max-w-2xl">
+            <span className="mb-3 inline-flex items-center gap-2 rounded-full border border-pink-500/30 bg-pink-500/10 px-3 py-1 text-[11px] font-semibold tracking-wide text-pink-700 dark:text-pink-300">
+              <UserCheck className="h-3.5 w-3.5" />
+              FACULTY WORKSPACE
+            </span>
+            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
+              Welcome, <span className="brand-text">{facultyName}</span>
             </h1>
-            <p className="text-surface-300 text-sm max-w-2xl leading-relaxed font-mono">
-              {profile?.designation ? `${profile.designation} • ` : 'Faculty • '}
+            <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+              {profile?.designation ? `${profile.designation} · ` : 'Faculty · '}
               {profile?.department ? `${profile.department} Department` : 'University Faculty'}
+              {' '}— support your department, review student work, and keep your community informed.
             </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link to="/announcements" className="btn-primary inline-flex items-center gap-2 text-xs">
+                <Megaphone className="h-3.5 w-3.5" />
+                Post Announcement
+              </Link>
+              <Link to="/profile" className="btn-secondary inline-flex items-center gap-2 text-xs">
+                <Clock className="h-3.5 w-3.5 text-pink-400" />
+                Office Hours &amp; Profile
+              </Link>
+              <button
+                type="button"
+                onClick={loadFacultyData}
+                disabled={loading}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-pink-300 hover:bg-pink-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:border-pink-400/40 dark:hover:bg-white/10"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={loadFacultyData}
-              disabled={loading}
-              className="btn-secondary text-xs inline-flex items-center gap-2"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
-            <Link
-              to="/announcements"
-              className="btn-primary text-xs inline-flex items-center gap-2"
-            >
-              <Megaphone className="w-3.5 h-3.5" />
-              Post Announcement
-            </Link>
-            <Link
-              to="/profile"
-              className="btn-secondary text-xs inline-flex items-center gap-2"
-            >
-              <Clock className="w-3.5 h-3.5 text-pink-500" />
-              Office Hours &amp; Profile
-            </Link>
+          <div className="relative mx-auto flex h-40 w-40 shrink-0 items-center justify-center sm:h-48 sm:w-48 lg:mr-8">
+            <div className="absolute inset-0 rounded-full border border-dashed border-pink-400/30" />
+            <div className="absolute inset-5 rounded-full border border-purple-400/30" />
+            <div className="absolute inset-0 rounded-full bg-pink-500/10 blur-2xl" />
+            <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-3xl border border-white/20 bg-gradient-to-br from-pink-500 via-rose-500 to-amber-400 shadow-xl shadow-pink-500/20 sm:h-24 sm:w-24">
+              <BookOpen className="h-10 w-10 text-white sm:h-12 sm:w-12" strokeWidth={1.5} />
+              <video
+                className="absolute inset-0 h-full w-full object-cover motion-reduce:hidden"
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload="metadata"
+                aria-hidden="true"
+                onError={(event) => {
+                  event.currentTarget.style.display = 'none';
+                }}
+              >
+                <source src="/faculty_dashboard.mp4" type="video/mp4" />
+              </video>
+            </div>
+            <div className="absolute left-0 top-8 flex h-10 w-10 items-center justify-center rounded-2xl border border-pink-400/30 bg-white text-pink-600 shadow-lg dark:bg-slate-900/90 dark:text-pink-300">
+              <Megaphone className="h-5 w-5" />
+            </div>
+            <div className="absolute bottom-5 right-0 flex h-10 w-10 items-center justify-center rounded-2xl border border-amber-400/30 bg-white text-amber-600 shadow-lg dark:bg-slate-900/90 dark:text-amber-300">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
           </div>
         </div>
 
-        {/* Office Hours Status Sub-bar */}
-        <div className="mt-6 pt-5 border-t border-white/10 flex flex-wrap items-center justify-between gap-4 text-xs font-mono">
-          <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4 text-pink-400" />
-            <span className="text-surface-400">Current Office Hours:</span>
-            <span className="font-semibold text-white bg-white/5 border border-white/10 px-2.5 py-0.5 rounded-lg">
-              {profile?.office_hours || 'Not set yet — Click "Office Hours" to set'}
+        <div className="relative z-10 mt-6 flex flex-col gap-3 border-t border-slate-200 pt-5 text-xs dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <Clock className="h-4 w-4 text-pink-300" />
+            <span className="text-slate-600 dark:text-slate-400">Office hours</span>
+            <span className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-medium text-slate-800 dark:border-white/10 dark:bg-white/5 dark:text-white">
+              {profile?.office_hours || 'Not set yet'}
             </span>
           </div>
-          <div className="text-surface-400 font-medium">
-            📢 Faculty broadcasts bypass standard peer queue and reach department directly.
-          </div>
+          <p className="text-slate-600 dark:text-slate-400">
+            Department announcements are delivered directly to your students.
+          </p>
         </div>
-      </motion.div>
+      </motion.section>
 
       {/* ─── Metric Cards Grid (Entire Card Clickable) ─── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -189,30 +218,30 @@ export default function FacultyDashboard({ user }) {
               key={stat.id}
               {...fadeUp(0.1 + i * 0.05)}
               onClick={() => navigate(stat.link)}
-              className="glass-card p-6 flex flex-col justify-between hover:border-pink-500/40 hover:shadow-lg hover:shadow-pink-500/5 transition-all group cursor-pointer select-none border border-white/5"
+              className="group flex cursor-pointer select-none flex-col justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-lg transition-all hover:-translate-y-1 hover:border-pink-300 hover:shadow-pink-500/10 dark:border-slate-800/90 dark:bg-[#111118] dark:shadow-xl dark:hover:border-pink-500/40 sm:p-6"
             >
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 rounded-2xl bg-gradient-to-br from-pink-500/20 to-amber-500/20 border border-pink-500/30 text-pink-500 shadow-md">
+                  <div className="rounded-2xl border border-pink-500/30 bg-gradient-to-br from-pink-500/20 to-amber-500/20 p-3 text-pink-400 shadow-md">
                     <Icon className="w-5 h-5" />
                   </div>
-                  <span className={`text-[11px] font-mono font-semibold px-2.5 py-1 rounded-full ${stat.badgeColor}`}>
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${stat.badgeColor}`}>
                     {stat.count}
                   </span>
                 </div>
-                <h3 className="text-sm font-bold text-surface-400 group-hover:text-pink-400 transition-colors">
+                <h3 className="text-sm font-bold text-slate-700 transition-colors group-hover:text-pink-600 dark:text-slate-300 dark:group-hover:text-pink-300">
                   {stat.label}
                 </h3>
-                <p className="text-2xl font-extrabold font-mono text-white mt-1">
+                <p className="mt-1 text-2xl font-extrabold text-slate-900 dark:text-white">
                   {stat.count}
                 </p>
-                <p className="text-xs text-surface-500 mt-1">
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                   {stat.subtext}
                 </p>
               </div>
 
               <div
-                className="mt-5 inline-flex items-center justify-between text-xs font-bold text-pink-500 group-hover:translate-x-1 transition-transform"
+                className="mt-5 inline-flex items-center justify-between text-xs font-bold text-pink-400 transition-transform group-hover:translate-x-1"
               >
                 <span>{stat.actionLabel}</span>
                 <ArrowRight className="w-4 h-4" />

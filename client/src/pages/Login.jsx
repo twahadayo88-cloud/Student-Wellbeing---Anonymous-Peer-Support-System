@@ -53,9 +53,24 @@ export default function Login() {
   return (
     <>
       <Navbar />
-      <div className="min-h-screen flex items-center justify-center pt-16 px-4 bg-slate-50 dark:bg-[#09090e]">
-        {/* Background orbs */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <main className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-[#09090e] px-4 pt-16">
+        <div className="absolute inset-0 bg-[#09090e]" />
+        <video
+          className="absolute inset-0 h-full w-full object-cover opacity-90 motion-reduce:hidden"
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          aria-hidden="true"
+          onError={(event) => {
+            event.currentTarget.style.display = 'none';
+          }}
+        >
+          <source src="/signin_and_login.mp4" type="video/mp4" />
+        </video>
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-950/30 via-slate-950/25 to-purple-950/35" />
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="orb orb-pink w-80 h-80 top-1/4 right-1/4 opacity-40" />
           <div className="orb orb-red w-64 h-64 bottom-1/4 left-1/4 opacity-30" style={{ animationDelay: '3s' }} />
         </div>
@@ -64,7 +79,7 @@ export default function Login() {
           initial={{ opacity: 0, y: 24, scale: 0.97 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-          className="relative w-full max-w-md"
+          className="relative z-10 w-full max-w-md"
         >
           <div className="glass-card p-8 sm:p-10">
             {/* Header */}
@@ -179,7 +194,7 @@ export default function Login() {
             </div>
 
             <p className="text-center text-sm text-slate-500 dark:text-slate-400">
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <Link to="/register" className="font-bold hover:underline" style={{ color: '#ec4899' }}>
                 Sign up free
               </Link>
@@ -194,7 +209,7 @@ export default function Login() {
             </p>
           </div>
         </motion.div>
-      </div>
+      </main>
     </>
   );
 }

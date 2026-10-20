@@ -3,6 +3,7 @@ import { ArrowUpRight, Check, Eye, History, RefreshCw, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../services/api';
 import useAuth from '../hooks/useAuth';
+import Sidebar from '../components/layout/Sidebar';
 import Navbar from '../components/layout/Navbar';
 import Footer from '../components/layout/Footer';
 
@@ -107,8 +108,8 @@ export default function ComplaintReview() {
 
   return (
     <>
-      <Navbar />
-      <main className="min-h-screen px-4 pb-12 pt-24 sm:px-6 lg:px-8 bg-[#09090e]">
+      {isFaculty ? <Sidebar /> : <Navbar />}
+      <main className={`min-h-screen bg-[#09090e] px-4 pb-12 sm:px-6 lg:px-8 ${isFaculty ? 'ml-16 pt-6 sm:ml-64' : 'pt-24'}`}>
       <div className="mx-auto max-w-5xl space-y-6">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -236,7 +237,9 @@ export default function ComplaintReview() {
         )}
       </div>
     </main>
-      <Footer />
+      <div className={isFaculty ? 'ml-16 sm:ml-64' : ''}>
+        <Footer />
+      </div>
     </>
   );
 }

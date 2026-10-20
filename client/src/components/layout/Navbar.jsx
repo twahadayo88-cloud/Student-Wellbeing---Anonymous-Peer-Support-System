@@ -120,7 +120,7 @@ export default function Navbar() {
                     className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 ${
                       isActive(link.to)
                         ? 'text-white'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/6'
+                        : 'text-slate-600 hover:bg-slate-200 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-700/70 dark:hover:text-white'
                     }`}
                     style={isActive(link.to) ? {
                       background: 'linear-gradient(135deg, #ec4899, #ef4444, #f59e0b)',
@@ -211,7 +211,7 @@ export default function Navbar() {
                         <Link
                           to="/profile"
                           id="nav-profile"
-                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-700/70 dark:hover:text-white transition-colors"
                           onClick={() => setProfileOpen(false)}
                         >
                           <UserIcon size={15} className="text-slate-400" />
@@ -221,7 +221,7 @@ export default function Navbar() {
                           <Link
                             to="/dashboard"
                             id="nav-dropdown-dashboard"
-                            className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                            className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-700/70 dark:hover:text-white transition-colors"
                             onClick={() => setProfileOpen(false)}
                           >
                             <GridIcon size={15} className="text-slate-400" />
@@ -328,7 +328,7 @@ export default function Navbar() {
                     key={link.to}
                     to={link.to}
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                      isActive(link.to) ? 'text-white' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/6'
+                      isActive(link.to) ? 'text-white' : 'text-slate-700 hover:bg-slate-200 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-700/70 dark:hover:text-white'
                     }`}
                     style={isActive(link.to) ? { background: 'linear-gradient(135deg, #ec4899, #ef4444, #f59e0b)' } : {}}
                   >
@@ -339,7 +339,7 @@ export default function Navbar() {
 
                 <Link to="/profile"
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                    isActive('/profile') ? 'text-white' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/6'
+                    isActive('/profile') ? 'text-white' : 'text-slate-700 hover:bg-slate-200 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-700/70 dark:hover:text-white'
                   }`}
                   style={isActive('/profile') ? { background: 'linear-gradient(135deg, #ec4899, #ef4444, #f59e0b)' } : {}}>
                   <UserIcon size={16} />
@@ -379,7 +379,7 @@ function ThemeToggleBtn({ isDark, toggleTheme }) {
     <button
       id="theme-toggle"
       onClick={toggleTheme}
-      className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/6 transition-all duration-200 group"
+      className="p-2 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700/70 transition-all duration-200 group"
       aria-label="Toggle theme"
     >
       {isDark ? (

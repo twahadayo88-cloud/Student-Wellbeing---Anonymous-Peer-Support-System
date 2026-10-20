@@ -1,8 +1,7 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Sun, Moon, UserRound, GraduationCap, ShieldCheck, Trash2, Save, LogOut } from 'lucide-react';
+import { X, UserRound, GraduationCap, ShieldCheck, Trash2, Save, LogOut } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { ThemeContext } from '../context/ThemeContext';
 import Sidebar from '../components/layout/Sidebar';
 import Navbar from '../components/layout/Navbar';
 import PageHeader from '../components/layout/PageHeader';
@@ -15,8 +14,8 @@ export default function Profile() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { socket, isConnected, connError } = useSocket();
-  const { isDark, toggleTheme } = useContext(ThemeContext);
   const isStudent = user?.role === 'student';
+  const usesSidebar = isStudent || user?.role === 'faculty';
 
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -203,8 +202,8 @@ export default function Profile() {
   if (loading) {
     return (
       <>
-        {isStudent ? <Sidebar /> : <Navbar />}
-        <main className={`min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#09090e] ${isStudent ? 'ml-16 sm:ml-64' : 'pt-20'}`}>
+        {usesSidebar ? <Sidebar /> : <Navbar />}
+        <main className={`flex min-h-screen items-center justify-center bg-slate-50 dark:bg-[#09090e] ${usesSidebar ? 'ml-16 sm:ml-64' : 'pt-20'}`}>
           <div className="text-center space-y-4">
             <div className="w-10 h-10 rounded-full border-4 border-pink-500 border-t-transparent animate-spin mx-auto" />
             <p className="text-slate-500 dark:text-slate-400">
@@ -220,8 +219,8 @@ export default function Profile() {
 
   return (
     <>
-      {isStudent ? <Sidebar /> : <Navbar />}
-      <main className={`min-h-screen pb-16 bg-slate-50 dark:bg-[#09090e] ${isStudent ? 'ml-16 pt-4 sm:ml-64 sm:pt-6' : 'pt-20'}`}>
+      {usesSidebar ? <Sidebar /> : <Navbar />}
+      <main className={`min-h-screen bg-slate-50 pb-16 dark:bg-[#09090e] ${usesSidebar ? 'ml-16 pt-4 sm:ml-64 sm:pt-6' : 'pt-20'}`}>
         <div className="max-w-5xl mx-auto w-full px-4 sm:px-6">
           <motion.div {...fadeUp()}>
             <PageHeader
@@ -231,21 +230,10 @@ export default function Profile() {
               tone="light"
               actions={(
                 <div className="flex items-center gap-2">
-                  {isStudent && (
-                    <button
-                      type="button"
-                      onClick={toggleTheme}
-                      aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
-                      title={`Switch to ${isDark ? 'light' : 'dark'} mode`}
-                      className="flex h-10 w-10 items-center justify-center rounded-xl border-slate-200 bg-white text-slate-600 transition-colors hover:border-pink-300 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:border-pink-500/50"
-                    >
-                      {isDark ? <Sun size={17} /> : <Moon size={17} />}
-                    </button>
-                  )}
                   <button
                     type="button"
                     onClick={handleLogout}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border-red-200 bg-white px-3 text-xs font-bold text-red-600 transition-colors hover:bg-red-50 dark:border-red-500/30 dark:bg-white/5 dark:text-red-400 dark:hover:bg-red-500/10 sm:px-4 sm:text-sm"
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-3 text-xs font-bold text-red-600 transition-colors hover:bg-red-50 dark:border-red-500/30 dark:bg-white/5 dark:text-red-400 dark:hover:bg-red-500/10 sm:px-4 sm:text-sm"
                   >
                     <LogOut size={16} />
                     <span className="hidden sm:inline">Log out</span>
@@ -265,22 +253,22 @@ export default function Profile() {
 
         <motion.form {...fadeUp(0.1)} onSubmit={handleSave} className="space-y-6">
           {/* Identity Section */}
-          <section className="rounded-3xl overflow-hidden border-slate-800 bg-gradient-to-r from-purple-900/40 via-slate-900 to-pink-900/40 p-6 md:p-8 shadow-2xl relative">
+          <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-r from-purple-950/80 via-slate-950 to-pink-950/70 p-6 shadow-2xl sm:p-8">
             <div className="absolute -right-10 -top-16 h-48 w-48 rounded-full bg-pink-500/10 blur-3xl" />
-            <h2 className="relative text-lg font-extrabold text-white mb-5 tracking-tight flex items-center gap-2"><UserRound className="w-5 h-5 text-pink-400" /> Identity &amp; Verification</h2>
-            <div className="flex flex-wrap gap-5 items-center">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-pink-500/20 via-red-500/15 to-amber-500/20 border border-pink-500/30 overflow-hidden flex items-center justify-center shadow-md shadow-pink-500/20 shrink-0">
+            <h2 className="relative mb-5 flex items-center gap-2 text-lg font-extrabold tracking-tight text-white"><UserRound className="h-5 w-5 text-pink-400" /> Identity &amp; Verification</h2>
+            <div className="relative flex flex-wrap items-center gap-5">
+              <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-pink-400/30 bg-gradient-to-br from-pink-500/20 via-red-500/15 to-amber-500/20 shadow-md shadow-pink-500/20 sm:h-20 sm:w-20">
                 <img
                   src={`https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(profile?.anonymous_id || 'PB')}&backgroundColor=transparent`}
-                  alt="avatar"
+                  alt="Your anonymous profile avatar"
                   className="w-full h-full object-cover"
                 />
               </div>
               <div className="space-y-1">
-                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block font-mono">
+                <span className="block font-mono text-[10px] font-bold uppercase tracking-wider text-slate-400">
                   Autonomous Handle
                 </span>
-                <span className="font-mono font-extrabold text-base sm:text-lg text-slate-900 dark:text-white">
+                <span className="font-mono text-base font-extrabold text-white sm:text-lg">
                   {profile?.anonymous_id}
                 </span>
               </div>
@@ -294,8 +282,8 @@ export default function Profile() {
 
           {/* Form Fields */}
           {!isAdminUI && (
-            <section className="rounded-3xl border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#111118] space-y-6">
-              <h2 className="text-lg font-extrabold text-slate-900 dark:text-white mb-2 flex items-center gap-2"><GraduationCap className="w-5 h-5 text-pink-500" /> Academic Data</h2>
+            <section className="space-y-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#111118] sm:p-8">
+              <h2 className="mb-2 flex items-center gap-2 text-lg font-extrabold text-slate-900 dark:text-white"><GraduationCap className="h-5 w-5 text-pink-500" /> Academic Data</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  {isFaculty && (
                    <div className="md:col-span-2">
@@ -384,7 +372,7 @@ export default function Profile() {
           )}
 
           {!isAdminUI && (
-            <section className="rounded-3xl border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#111118] space-y-4">
+            <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#111118] sm:p-8">
                 <h2 className="text-lg font-extrabold text-slate-900 dark:text-white mb-2 flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-emerald-500" /> Privacy &amp; Research Consent</h2>
 
                 <label className="flex items-center gap-4 p-4 rounded-xl border border-surface-200 dark:border-surface-800 cursor-pointer hover:bg-surface-50 dark:hover:bg-surface-900 transition-colors">

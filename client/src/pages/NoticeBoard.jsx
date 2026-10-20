@@ -6,6 +6,7 @@ import api from '../services/api';
 import useAuth from '../hooks/useAuth';
 import { useSocket } from '../context/SocketContext';
 import Sidebar from '../components/layout/Sidebar';
+import Navbar from '../components/layout/Navbar';
 import PageHeader from '../components/layout/PageHeader';
 import Footer from '../components/layout/Footer';
 
@@ -193,6 +194,7 @@ NoticeCard.propTypes = {
 const NoticeBoard = () => {
   const { user } = useAuth();
   const { socket } = useSocket();
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   const isStudent = user?.role === 'student';
   const isFaculty = user?.role === 'faculty';
   const [tab, setTab] = useState('feed');
@@ -282,8 +284,8 @@ const NoticeBoard = () => {
 
   return (
     <>
-      <Sidebar />
-      <main className="min-h-screen ml-16 sm:ml-64 px-4 pb-16 pt-6 sm:px-6 lg:px-8 bg-slate-50 dark:bg-[#09090e] transition-colors">
+      {isAdmin ? <Navbar /> : <Sidebar />}
+      <main className={`min-h-screen px-4 pb-16 sm:px-6 lg:px-8 bg-slate-50 dark:bg-[#09090e] transition-colors ${isAdmin ? 'pt-24' : 'ml-16 pt-6 sm:ml-64'}`}>
       <div className="mx-auto max-w-5xl w-full space-y-7">
         {/* PAGE HEADER (standardized) */}
         <PageHeader

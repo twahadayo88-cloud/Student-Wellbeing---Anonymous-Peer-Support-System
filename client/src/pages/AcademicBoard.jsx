@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, Filter, BookOpen, Users, Star, GraduationCap, CheckCircle, ArrowLeft } from 'lucide-react';
 import Sidebar from '../components/layout/Sidebar';
+import Navbar from '../components/layout/Navbar';
 import PageHeader from '../components/layout/PageHeader';
 import Footer from '../components/layout/Footer';
 import RequestCard from '../components/academic/RequestCard';
@@ -16,6 +17,7 @@ import { useSocket } from '../context/SocketContext';
 
 const AcademicBoard = () => {
   const { user } = useAuth();
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   const { socket } = useSocket();
   const [requests, setRequests] = useState([]);
   const [trends, setTrends] = useState([]);
@@ -135,8 +137,8 @@ const AcademicBoard = () => {
 
   return (
     <>
-      <Sidebar />
-      <main className="min-h-screen ml-16 sm:ml-64 px-4 pb-16 pt-6 sm:px-6 lg:px-8 relative">
+      {isAdmin ? <Navbar /> : <Sidebar />}
+      <main className={`min-h-screen px-4 pb-16 sm:px-6 lg:px-8 relative ${isAdmin ? 'pt-24' : 'ml-16 pt-6 sm:ml-64'}`}>
         <div className="max-w-5xl mx-auto w-full">
         {/* Back navigation */}
         <div className="mb-2">

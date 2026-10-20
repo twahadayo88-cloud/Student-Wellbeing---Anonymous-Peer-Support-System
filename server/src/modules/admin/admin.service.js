@@ -16,7 +16,16 @@ class AdminService {
         u.id, 
         u.email,
         u.role, u.is_locked, u.created_at,
-        p.anonymous_id, p.department, bt.current_tier AS badge_tier
+        p.anonymous_id, p.department,
+        COALESCE(
+          bt.current_tier,
+          CASE
+            WHEN p.trust_score >= 80 THEN 'platinum'
+            WHEN p.trust_score >= 60 THEN 'gold'
+            WHEN p.trust_score >= 40 THEN 'silver'
+            ELSE 'bronze'
+          END
+        ) AS badge_tier
       FROM users u
       LEFT JOIN profiles p ON u.id = p.user_id
       LEFT JOIN badge_tiers bt ON bt.user_id = u.id

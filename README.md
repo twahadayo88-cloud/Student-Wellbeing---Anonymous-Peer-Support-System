@@ -300,7 +300,31 @@ Fill in the MySQL and JWT values before starting the server. The current startup
 node server/src/database/seeds/superadmin_seed.js
 ```
 
-### 4. Run the application
+### 4. Seed fictional demo data (optional)
+Start the backend once so its database migrations have run, then run this command from the workspace root:
+```bash
+npm run seed:demo
+```
+
+The demo seeder adds sample accounts and connected records for profiles, anonymous IDs, academic requests and matching, chat, mood history, resources, notices, reports, moderation, trust scores/badges, notifications, and audit views. It is additive and transactional: it does not clear existing data, and it skips when all demo accounts already exist. It requires `NODE_ENV=development` and only accepts a local MySQL host.
+
+All demo accounts use the password `PeerBridgeDemo!2026`:
+
+| Role | Login email |
+| :--- | :--- |
+| Student | `demo.student@peerbridge.test` |
+| Student | `demo.student2@peerbridge.test` |
+| Peer helper | `demo.helper.math@peerbridge.test` |
+| Peer helper | `demo.helper.cs@peerbridge.test` |
+| Peer helper | `demo.helper.wellbeing@peerbridge.test` |
+| Peer helper | `demo.helper.general@peerbridge.test` |
+| Faculty | `demo.faculty@peerbridge.test` |
+| Admin | `demo.admin@peerbridge.test` |
+| Super admin | `demo.superadmin@peerbridge.test` |
+
+These are fictional development-only accounts; do not use the demo seeder on a shared or production database.
+
+### 5. Run the application
 ```bash
 npm run dev
 ```
@@ -362,6 +386,7 @@ Run from the workspace root:
 | `npm run start` | Runs server and client start scripts concurrently. |
 | `npm run dev:server` | Runs the backend with Nodemon. |
 | `npm run dev:client` | Runs the Vite client. |
+| `npm run seed:demo` | Adds fictional, development-only sample data to a local MySQL database. |
 | `npm run install:all` | Installs root, server, and client dependencies. |
 | `npm run lint` | Runs server and client ESLint commands. |
 | `npm run build --prefix client` | Builds the client for production. |

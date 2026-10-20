@@ -152,11 +152,15 @@ export default function Dashboard() {
   if (user?.role === 'faculty') {
     return (
       <>
-        <Navbar />
-        <main className="min-h-screen pt-20 pb-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto bg-slate-50 dark:bg-[#09090e]">
-          <FacultyDashboard user={user} />
+        <Sidebar />
+        <main className="ml-16 min-h-screen bg-slate-50 pb-12 pt-4 dark:bg-[#09090e] sm:ml-64 sm:pt-6">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <FacultyDashboard user={user} />
+          </div>
         </main>
-        <Footer />
+        <div className="ml-16 sm:ml-64">
+          <Footer />
+        </div>
       </>
     );
   }
@@ -239,65 +243,60 @@ export default function Dashboard() {
           ) : (
           <>
           {/* --- Hero Graphic Banner + Integrated Bento Metrics --- */}
-          <motion.div {...fadeUp(0.1)} className="max-w-5xl mx-auto w-full rounded-3xl overflow-hidden border border-slate-800 bg-gradient-to-r from-purple-900/40 via-slate-900 to-pink-900/40 p-6 md:p-8 shadow-2xl mb-8">
+          <motion.div {...fadeUp(0.1)} className="max-w-5xl mx-auto w-full overflow-hidden rounded-3xl border border-purple-100 bg-gradient-to-r from-purple-50 via-white to-pink-50 p-6 shadow-xl dark:border-slate-800 dark:from-purple-900/40 dark:via-slate-900 dark:to-pink-900/40 dark:shadow-2xl md:p-8 mb-8">
             {/* Top Row — Identity & Illustration */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div className="min-w-0">
-                <span className="px-3 py-1 bg-pink-500/10 border border-pink-500/30 text-pink-400 text-[11px] rounded-full font-semibold mb-2 inline-block">
+                <span className="px-3 py-1 bg-pink-500/10 border border-pink-500/30 text-pink-700 dark:text-pink-400 text-[11px] rounded-full font-semibold mb-2 inline-block">
                   PeerBridge Network
                 </span>
-                <h2 className="text-xl md:text-2xl font-extrabold text-white tracking-wide">
+                <h2 className="text-xl md:text-2xl font-extrabold text-slate-900 dark:text-white tracking-wide">
                   Connect &amp; Collaborate with Peer Members
                 </h2>
-                <p className="text-xs text-gray-300 mt-1">
+                <p className="text-xs text-slate-600 dark:text-gray-300 mt-1">
                   Find top peers, share study materials, and build real-time academic connections.
                 </p>
               </div>
-              {/* Glowing Vector Illustration */}
+              {/* Student dashboard video illustration */}
               <div className="relative w-40 h-40 md:w-48 md:h-48 shrink-0 self-center">
                 <div className="absolute inset-0 rounded-full opacity-40 blur-3xl"
                   style={{ background: 'radial-gradient(circle, rgba(236,72,153,0.55), rgba(168,85,247,0.25), transparent 70%)' }} />
-                <svg viewBox="0 0 200 200" className="relative w-full h-full" fill="none" aria-hidden="true">
-                  <circle cx="100" cy="100" r="86" stroke="rgba(236,72,153,0.25)" strokeWidth="1.5" strokeDasharray="4 6" />
-                  <circle cx="100" cy="100" r="62" stroke="rgba(168,85,247,0.3)" strokeWidth="1.5" />
-                  <circle cx="100" cy="38" r="13" fill="rgba(168,85,247,0.25)" stroke="#a855f7" strokeWidth="2" />
-                  <circle cx="162" cy="100" r="13" fill="rgba(236,72,153,0.25)" stroke="#ec4899" strokeWidth="2" />
-                  <circle cx="100" cy="162" r="13" fill="rgba(245,158,11,0.25)" stroke="#f59e0b" strokeWidth="2" />
-                  <circle cx="38" cy="100" r="13" fill="rgba(236,72,153,0.25)" stroke="#ec4899" strokeWidth="2" />
-                  <path d="M100 51 L100 87 M113 100 L149 100 M100 113 L100 149 M51 100 L87 100" stroke="rgba(255,255,255,0.35)" strokeWidth="1.5" />
-                  <circle cx="100" cy="100" r="26" fill="url(#heroGrad)" stroke="rgba(255,255,255,0.5)" strokeWidth="2" />
-                  <circle cx="100" cy="93" r="8" fill="rgba(255,255,255,0.85)" />
-                  <path d="M84 116 a16 11 0 0 1 32 0" fill="rgba(255,255,255,0.85)" />
-                  <defs>
-                    <linearGradient id="heroGrad" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#ec4899" />
-                      <stop offset="55%" stopColor="#ef4444" />
-                      <stop offset="100%" stopColor="#f59e0b" />
-                    </linearGradient>
-                  </defs>
-                </svg>
+                <video
+                  className="relative h-full w-full rounded-full border border-pink-400/30 object-cover shadow-xl shadow-pink-500/20 motion-reduce:hidden"
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  preload="metadata"
+                  aria-hidden="true"
+                  onError={(event) => {
+                    event.currentTarget.style.display = 'none';
+                  }}
+                >
+                  <source src="/student_dashboard.mp4" type="video/mp4" />
+                </video>
               </div>
             </div>
             {/* Bottom Row — Integrated Bento Metrics Bar */}
-            <div className="pt-5 border-t border-white/10 grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-white/10 backdrop-blur-md">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Active Conversations</p>
-                <p className="text-2xl font-black mt-1" style={{ color: '#ec4899' }}>{conversations.length}</p>
+            <div className="pt-5 border-t border-slate-200 dark:border-white/10 grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="p-3.5 rounded-2xl bg-white/80 border border-slate-200 backdrop-blur-md dark:bg-slate-950/60 dark:border-white/10">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-gray-400">Active Conversations</p>
+                <p className="text-2xl font-black mt-1 text-rose-700 dark:text-pink-400">{conversations.length}</p>
               </div>
-              <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-white/10 backdrop-blur-md">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Matching Peers</p>
-                <p className="text-2xl font-black mt-1" style={{ color: '#a855f7' }}>{recommendations.length}</p>
+              <div className="p-3.5 rounded-2xl bg-white/80 border border-slate-200 backdrop-blur-md dark:bg-slate-950/60 dark:border-white/10">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-gray-400">Matching Peers</p>
+                <p className="text-2xl font-black mt-1 text-purple-700 dark:text-purple-400">{recommendations.length}</p>
               </div>
-              <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-white/10 backdrop-blur-md">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Pending Requests</p>
-                <p className="text-2xl font-black mt-1" style={{ color: '#f59e0b' }}>{incomingCount}</p>
+              <div className="p-3.5 rounded-2xl bg-white/80 border border-slate-200 backdrop-blur-md dark:bg-slate-950/60 dark:border-white/10">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-gray-400">Pending Requests</p>
+                <p className="text-2xl font-black mt-1 text-amber-700 dark:text-amber-400">{incomingCount}</p>
               </div>
-              <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-white/10 backdrop-blur-md">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Badge Tier</p>
+              <div className="p-3.5 rounded-2xl bg-white/80 border border-slate-200 backdrop-blur-md dark:bg-slate-950/60 dark:border-white/10">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-gray-400">Badge Tier</p>
                 {myProfile?.badge_tier ? (
                   <div className="mt-1"><BadgeDisplay tier={myProfile.badge_tier} size="md" /></div>
                 ) : (
-                  <span className="text-lg font-black text-gray-400">—</span>
+                  <span className="text-lg font-black text-slate-500 dark:text-gray-400">—</span>
                 )}
               </div>
             </div>
@@ -312,15 +311,15 @@ export default function Dashboard() {
               <motion.section {...fadeUp(0.3)}>
                 <div className="max-w-xl mx-auto w-full flex flex-col items-center space-y-6 pt-2">
                   {/* Section Heading */}
-                  <h2 className="w-full text-base font-bold text-gray-200 border-b border-slate-800/80 pb-2 mb-6 text-left">
+                  <h2 className="w-full text-base font-bold text-slate-800 border-b border-slate-200 pb-2 mb-6 text-left dark:border-slate-800/80 dark:text-gray-200">
                     Recommended Peers Feed
                   </h2>
 
                   {isLoadingMatches ? (
                     <div className="w-full space-y-6">
                       {[1, 2, 3].map(i => (
-                        <div key={i} className="bg-[#111118] border border-slate-800/90 rounded-2xl overflow-hidden shadow-2xl w-full">
-                          <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-800/60 bg-slate-900/30">
+                        <div key={i} className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg dark:border-slate-800/90 dark:bg-[#111118] dark:shadow-2xl">
+                          <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800/60 dark:bg-slate-900/30">
                             <div className="skeleton w-10 h-10 rounded-full" />
                             <div className="skeleton h-4 w-32 rounded" />
                           </div>
@@ -338,21 +337,21 @@ export default function Dashboard() {
                           key={peer.anonymous_id}
                           initial={{ opacity: 0, scale: 0.97 }}
                           animate={{ opacity: 1, scale: 1 }}
-                          className="bg-[#111118] border border-slate-800/90 rounded-2xl overflow-hidden shadow-2xl w-full hover:border-pink-500/30 transition duration-300 group"
+                          className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg transition duration-300 group hover:border-pink-300 dark:border-slate-800/90 dark:bg-[#111118] dark:shadow-2xl dark:hover:border-pink-500/30"
                         >
                           {/* Card Top Header */}
-                          <div className="flex justify-between items-center px-5 py-4 border-b border-slate-800/60 bg-slate-900/30">
+                          <div className="flex justify-between items-center border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800/60 dark:bg-slate-900/30">
                             <div className="flex items-center gap-3 min-w-0">
-                              <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 overflow-hidden flex-shrink-0">
+                              <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden flex-shrink-0 dark:bg-slate-800 dark:border-slate-700">
                                 <img src={dicebearUrl(peer.anonymous_id)} alt="Peer avatar"
                                   className="w-full h-full object-cover"
                                   onError={(e) => { e.target.style.display = 'none'; }} />
                               </div>
                               <div className="min-w-0">
-                                <p className="text-sm font-bold text-white font-mono truncate">
+                                <p className="text-sm font-bold text-slate-900 dark:text-white font-mono truncate">
                                   {peer.anonymous_id}
                                 </p>
-                                <p className="text-xs text-gray-400 mt-0.5 truncate">
+                                <p className="text-xs text-slate-600 dark:text-gray-400 mt-0.5 truncate">
                                   {peer.department}{peer.semester ? ` | Sem ${peer.semester}` : ''}
                                 </p>
                               </div>
@@ -362,7 +361,7 @@ export default function Dashboard() {
                               type="button"
                               onClick={() => setSelectedPeerForDetails(peer)}
                               aria-label={`Show ${peer.badge_tier || 'bronze'} badge details`}
-                              className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+                              className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900"
                             >
                               <BadgeDisplay tier={peer.badge_tier} size="sm" showLabel={false} />
                             </button>
@@ -370,10 +369,10 @@ export default function Dashboard() {
 
                           {/* Card Body — Specialties & Subjects Tags */}
                           <div className="p-5 space-y-3">
-                            <p className="text-xs text-gray-400 font-medium">Specialties &amp; Subjects:</p>
+                            <p className="text-xs text-slate-600 dark:text-gray-400 font-medium">Specialties &amp; Subjects:</p>
                             <div className="flex flex-wrap gap-2">
                               {Array.isArray(peer.subjects) && peer.subjects.slice(0, 3).map(s => (
-                                <span key={s} className="text-xs px-3 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700/60 text-gray-200 font-mono font-medium">
+                                <span key={s} className="text-xs px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 font-mono font-medium dark:bg-slate-800/90 dark:border-slate-700/60 dark:text-gray-200">
                                   {s}
                                 </span>
                               ))}
@@ -393,18 +392,18 @@ export default function Dashboard() {
                       ))}
                     </div>
                   ) : recommendations.length > 0 ? (
-                    <div className="w-full bg-[#111118] border border-slate-800/90 rounded-2xl p-10 text-center">
-                      <h3 className="mb-2 text-lg font-bold text-white">No peers match those filters</h3>
-                      <p className="text-sm text-gray-400">Try a different search or select another area.</p>
+                    <div className="w-full rounded-2xl border border-slate-200 bg-white p-10 text-center dark:border-slate-800/90 dark:bg-[#111118]">
+                      <h3 className="mb-2 text-lg font-bold text-slate-900 dark:text-white">No peers match those filters</h3>
+                      <p className="text-sm text-slate-600 dark:text-gray-400">Try a different search or select another area.</p>
                     </div>
                   ) : (
-                    <div className="w-full bg-[#111118] border border-slate-800/90 rounded-2xl p-10 text-center">
+                    <div className="w-full rounded-2xl border border-slate-200 bg-white p-10 text-center dark:border-slate-800/90 dark:bg-[#111118]">
                       <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center"
                         style={{ background: 'rgba(236,72,153,0.1)', border: '1px solid rgba(236,72,153,0.2)' }}>
                         <Signal className="w-7 h-7" style={{ color: '#ec4899' }} />
                       </div>
-                      <h3 className="font-bold text-white mb-2 text-lg">No matches yet</h3>
-                      <p className="text-gray-400 text-sm max-w-xs mx-auto">
+                      <h3 className="font-bold text-slate-900 dark:text-white mb-2 text-lg">No matches yet</h3>
+                      <p className="text-slate-600 dark:text-gray-400 text-sm max-w-xs mx-auto">
                         No peer matches available right now. Post an academic help request to get matched.
                       </p>
                               <Link to="/academic" className="btn-primary mt-5 text-sm px-6 py-2">
@@ -432,7 +431,7 @@ export default function Dashboard() {
 
                 <div className="space-y-3">
                   {pendingRequests.incoming.length === 0 && pendingRequests.sent.length === 0 && (
-                    <p className="text-xs text-slate-400 text-center py-6">No active requests</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 text-center py-6">No active requests</p>
                   )}
 
                   {pendingRequests.incoming.map(req => (
@@ -476,7 +475,7 @@ export default function Dashboard() {
                       <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
                         Sent to <span className="font-mono brand-text">{req.receiver_anonymous_id}</span>
                       </p>
-                      <p className="text-[10px] text-slate-400 capitalize">
+                      <p className="text-[10px] text-slate-600 dark:text-slate-400 capitalize">
                         Status: <span className={`font-bold ${
                           req.status === 'accepted' ? 'text-emerald-500' :
                           req.status === 'declined' ? 'text-red-500' : 'text-amber-500'
@@ -505,7 +504,7 @@ export default function Dashboard() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                         </svg>
                       </div>
-                      <p className="text-xs text-slate-400">No active conversations</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">No active conversations</p>
                     </div>
                   ) : (
                     conversations.map((conv, idx) => (
@@ -590,42 +589,42 @@ export default function Dashboard() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="peer-badge-details-title"
-            className="relative w-full max-w-md rounded-2xl border-slate-700 bg-[#111118] p-6 text-slate-100 shadow-2xl"
+            className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl dark:border-slate-700 dark:bg-[#111118] dark:text-slate-100"
             onClick={(event) => event.stopPropagation()}
           >
             <button
               type="button"
               onClick={() => setSelectedPeerForDetails(null)}
               aria-label="Close peer details"
-              className="absolute right-4 top-4 rounded-lg px-2 py-1 text-slate-400 hover:bg-white/10 hover:text-white"
+              className="absolute right-4 top-4 rounded-lg px-2 py-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
             >
               ×
             </button>
             <h2 id="peer-badge-details-title" className="mb-5 text-lg font-bold">Peer details</h2>
             <div className="mb-5 flex items-center gap-3">
-              <div className="h-12 w-12 overflow-hidden rounded-full border-slate-700 bg-slate-800">
+              <div className="h-12 w-12 overflow-hidden rounded-full border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800">
                 <img src={dicebearUrl(selectedPeerForDetails.anonymous_id)} alt="Peer avatar" className="h-full w-full object-cover" />
               </div>
               <div>
                 <p className="font-mono font-bold">{selectedPeerForDetails.anonymous_id}</p>
-                <p className="text-sm text-slate-400">
+                <p className="text-sm text-slate-600 dark:text-slate-400">
                   {selectedPeerForDetails.department}{selectedPeerForDetails.semester ? ` | Sem ${selectedPeerForDetails.semester}` : ''}
                 </p>
               </div>
             </div>
             <div className="mb-5">
-              <p className="mb-2 text-xs font-medium text-slate-400">Badge</p>
+              <p className="mb-2 text-xs font-medium text-slate-600 dark:text-slate-400">Badge</p>
               <BadgeDisplay tier={selectedPeerForDetails.badge_tier} size="md" />
             </div>
             <div className="mb-6">
-              <p className="mb-2 text-xs font-medium text-slate-400">Specialties &amp; Subjects</p>
+              <p className="mb-2 text-xs font-medium text-slate-600 dark:text-slate-400">Specialties &amp; Subjects</p>
               <div className="flex flex-wrap gap-2">
                 {Array.isArray(selectedPeerForDetails.subjects) && selectedPeerForDetails.subjects.length > 0 ? (
                   selectedPeerForDetails.subjects.map((subject) => (
-                    <span key={subject} className="rounded-xl border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-mono text-slate-200">{subject}</span>
+                    <span key={subject} className="rounded-xl border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-mono text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">{subject}</span>
                   ))
                 ) : (
-                  <span className="text-sm text-slate-400">No subjects listed</span>
+                  <span className="text-sm text-slate-600 dark:text-slate-400">No subjects listed</span>
                 )}
               </div>
             </div>

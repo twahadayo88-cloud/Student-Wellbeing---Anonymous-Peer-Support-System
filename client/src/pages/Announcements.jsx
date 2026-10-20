@@ -18,11 +18,13 @@ import { toast } from 'react-hot-toast';
 import api from '../services/api';
 import useAuth from '../hooks/useAuth';
 import Sidebar from '../components/layout/Sidebar';
+import Navbar from '../components/layout/Navbar';
 import PageHeader from '../components/layout/PageHeader';
 import Footer from '../components/layout/Footer';
 
 export default function Announcements() {
   const { user } = useAuth();
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   const isFaculty = user?.role === 'faculty' || user?.role === 'admin' || user?.role === 'super_admin';
 
   const [announcements, setAnnouncements] = useState([]);
@@ -116,8 +118,8 @@ export default function Announcements() {
 
   return (
     <>
-      <Sidebar />
-      <main className="min-h-screen ml-16 sm:ml-64 px-4 pb-16 pt-6 sm:px-6 lg:px-8">
+      {isAdmin ? <Navbar /> : <Sidebar />}
+      <main className={`min-h-screen px-4 pb-16 sm:px-6 lg:px-8 ${isAdmin ? 'pt-24' : 'ml-16 pt-6 sm:ml-64'}`}>
         <div className="max-w-5xl mx-auto w-full">
         {/* PAGE HEADER (standardized) */}
         <PageHeader
@@ -148,7 +150,7 @@ export default function Announcements() {
         />
 
         {/* Department Status Banner */}
-        <div className="mb-8 p-4 rounded-2xl glass-card border border-surface-200/80 dark:border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="mb-8 p-4 sm:p-5 rounded-2xl glass-card border border-surface-200/80 dark:border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-gradient-to-br from-pink-500/20 to-amber-500/20 text-pink-500 border border-pink-500/30">
               <Building2 className="w-5 h-5" />
@@ -168,9 +170,25 @@ export default function Announcements() {
               <Link to="/profile" className="underline ml-1 text-pink-500 hover:text-pink-400">Go to Profile →</Link>
             </div>
           ) : (
-            <div className="text-xs text-surface-500 dark:text-surface-400 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              Announcements are strictly isolated to students & faculty of {userDepartment}
+            <div className="w-full sm:max-w-sm">
+              <video
+                className="h-40 w-full rounded-xl border border-surface-200 object-cover shadow-md dark:border-white/10 sm:h-44"
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload="metadata"
+                aria-label="Department announcements video"
+                onError={(event) => {
+                  event.currentTarget.style.display = 'none';
+                }}
+              >
+                <source src="/student_DA.mp4" type="video/mp4" />
+              </video>
+              <p className="mt-3 flex items-start gap-2 text-xs font-medium leading-relaxed text-surface-600 dark:text-surface-300">
+                <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
+                <span>Announcements are strictly isolated to students &amp; faculty of {userDepartment}</span>
+              </p>
             </div>
           )}
         </div>

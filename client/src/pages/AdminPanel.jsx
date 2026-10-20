@@ -1,6 +1,24 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Zap, AlertTriangle, Shield, Check, X, ArrowUpCircle, Eye, GraduationCap, History, HeartPulse, RefreshCw } from 'lucide-react';
+import {
+  Activity,
+  AlertTriangle,
+  ArrowRight,
+  ArrowUpCircle,
+  BookOpen,
+  Check,
+  Clock3,
+  Eye,
+  FileText,
+  GraduationCap,
+  HeartPulse,
+  History,
+  RefreshCw,
+  Shield,
+  Users,
+  Zap,
+  X,
+} from 'lucide-react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import Navbar from '../components/layout/Navbar';
 import Footer from '../components/layout/Footer';
@@ -8,6 +26,29 @@ import useAuth from '../hooks/useAuth';
 import api from '../services/api';
 import { useSocket } from '../context/SocketContext';
 import BadgeDisplay from '../components/trust/BadgeDisplay';
+
+const BADGE_TIERS = ['bronze', 'silver', 'gold', 'platinum'];
+const getBadgeTier = (value) => {
+  const normalizedTier = String(value || '').trim().toLowerCase();
+  return BADGE_TIERS.includes(normalizedTier) ? normalizedTier : 'bronze';
+};
+
+const dedupeEscalationRecords = (records) => {
+  const seen = new Set();
+  return records.filter((record) => {
+    const signature = JSON.stringify([
+      record.user_id,
+      record.anonymous_id,
+      record.level,
+      record.reason,
+      record.content_ref,
+      record.created_at,
+    ]);
+    if (seen.has(signature)) return false;
+    seen.add(signature);
+    return true;
+  });
+};
 
 /**
  * AdminPanel — central command for PeerBridge administrators.
@@ -49,8 +90,13 @@ export default function AdminPanel() {
   const [adminSectionLoading, setAdminSectionLoading] = useState(false);
   const [adminSectionError, setAdminSectionError] = useState('');
   const [severityFilter, setSeverityFilter] = useState('ALL');
+  const [violationsSeverityFilter, setViolationsSeverityFilter] = useState('ALL');
+  const [badgeTierFilter, setBadgeTierFilter] = useState('ALL');
+  const [escalationLevelFilter, setEscalationLevelFilter] = useState('ALL');
+  const [complaintCategoryFilter, setComplaintCategoryFilter] = useState('ALL');
   const [activeTab, setActiveTab] = useState('overview');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const canViewMoodTrends = user?.role === 'admin' || user?.role === 'super_admin';
 
   const fetchMoodTrends = async () => {
@@ -264,7 +310,7 @@ export default function AdminPanel() {
         api.get('/admin/audit-logs')
       ]);
       setModerationQueue(queueRes.data.data);
-      setEscalations(escalationsRes.data.data);
+      setEscalations(dedupeEscalationRecords(escalationsRes.data.data || []));
       setLowScoreUsers(lowScoresRes.data.data);
       setAcademicQueue(academicRes.data.data);
       setAuditLogs(auditLogsRes.data.data);
@@ -319,12 +365,65 @@ export default function AdminPanel() {
     }
   };
 
-  // High shows only HIGH items; Medium or Low show MEDIUM + LOW items.
+  const refreshDashboard = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([fetchStats(), fetchInitialTables(), fetchModerationData()]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const selectTab = (tab) => {
+    setActiveTab(tab);
+    if (tab === 'wellbeing' && canViewMoodTrends) fetchMoodTrends();
+    if (
+      ['complaints', 'appeals', 'repeat-offenders', 'security', 'rules', 'policy-review'].includes(
+        tab
+      )
+    ) {
+      loadAdminSection(tab);
+    }
+  };
+
   const filteredModerationQueue = moderationQueue.filter(item => {
     if (severityFilter === 'ALL') return true;
     const severity = (item.ai_severity || '').toUpperCase();
-    return severityFilter === 'HIGH' ? severity === 'HIGH' : severity === 'MEDIUM' || severity === 'LOW';
+    return severity === severityFilter;
   });
+
+  const filteredViolations = violations.filter((violation) => (
+    violationsSeverityFilter === 'ALL' ||
+    String(violation.severity || '').toUpperCase() === violationsSeverityFilter
+  ));
+  const studentBadgeUsers = users.filter((account) => account.role === 'student');
+  const filteredBadgeUsers = studentBadgeUsers.filter((account) => (
+    badgeTierFilter === 'ALL' ||
+    getBadgeTier(account.badge_tier) === badgeTierFilter.toLowerCase()
+  ));
+  const escalationLevels = [...new Set([
+    'warning',
+    'removal',
+    'suspension',
+    'identity_reveal',
+    ...escalations.map((record) => String(record.level || '').toLowerCase()).filter(Boolean),
+  ])];
+  const filteredEscalations = escalations.filter((record) => (
+    escalationLevelFilter === 'ALL' ||
+    String(record.level || '').toLowerCase() === escalationLevelFilter.toLowerCase()
+  ));
+  const complaintCategories = [
+    'harassment',
+    'abusive_language',
+    'academic_dispute',
+    'privacy_violation',
+    'spam_or_scam',
+    'other',
+  ];
+  const filteredEscalatedComplaints = escalatedComplaints.filter((complaint) => (
+    complaintCategoryFilter === 'ALL' ||
+    String(complaint.category || '').toLowerCase() === complaintCategoryFilter.toLowerCase()
+  ));
 
   const filteredUsers = users.filter(u => {
     const anonId = u.anonymous_id || '';
@@ -334,9 +433,83 @@ export default function AdminPanel() {
   });
 
   const statCards = [
-    { label: 'Total Users', value: stats.total_users, gradient: 'from-pink-500 to-rose-500', icon: Users },
-    { label: 'Active Today', value: stats.active_today, gradient: 'from-emerald-400 to-teal-500', icon: Zap },
-    { label: 'Violations', value: stats.total_violations, gradient: 'from-amber-400 to-orange-500', icon: AlertTriangle },
+    {
+      label: 'Total Users',
+      value: stats.total_users,
+      detail: 'Registered community members',
+      gradient: 'from-pink-500 to-rose-500',
+      icon: Users,
+      tab: 'users',
+    },
+    {
+      label: 'Active Today',
+      value: stats.active_today,
+      detail: 'Members active in the last 24 hours',
+      gradient: 'from-emerald-400 to-teal-500',
+      icon: Zap,
+      tab: 'users',
+    },
+    {
+      label: 'Violations',
+      value: stats.total_violations,
+      detail: 'Recorded safety and policy events',
+      gradient: 'from-amber-400 to-orange-500',
+      icon: AlertTriangle,
+      tab: 'violations',
+    },
+  ];
+
+  const reviewCards = [
+    {
+      label: 'Moderation queue',
+      value: moderationQueue.length,
+      description: 'Content waiting for review',
+      icon: Shield,
+      color: 'text-pink-500',
+      tab: 'moderation',
+    },
+    {
+      label: 'Academic reviews',
+      value: academicQueue.length,
+      description: 'Support posts held for review',
+      icon: BookOpen,
+      color: 'text-indigo-500',
+      tab: 'academic',
+    },
+    {
+      label: 'Escalations',
+      value: escalations.length,
+      description: 'Cases needing closer attention',
+      icon: ArrowUpCircle,
+      color: 'text-amber-500',
+      tab: 'escalations',
+    },
+    {
+      label: 'Low behavior scores',
+      value: lowScoreUsers.length,
+      description: 'Accounts flagged by behavior signals',
+      icon: Activity,
+      color: 'text-rose-500',
+      tab: 'moderation',
+    },
+  ];
+
+  const dashboardTabs = [
+    'overview',
+    'users',
+    'violations',
+    'moderation',
+    'academic',
+    'trust',
+    'escalations',
+    'complaints',
+    'appeals',
+    'repeat-offenders',
+    'security',
+    'rules',
+    'policy-review',
+    'audit-logs',
+    ...(canViewMoodTrends ? ['wellbeing'] : []),
   ];
 
   const fadeUp = {
@@ -348,57 +521,157 @@ export default function AdminPanel() {
   return (
     <>
       <Navbar />
-      <main className="min-h-screen pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto bg-[#09090e]">
-        <header className="mb-8">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pink-500/10 border border-pink-500/20 text-pink-500 text-xs font-bold uppercase tracking-wider mb-2">
-            <Shield className="w-3.5 h-3.5" />
-            Security &amp; Moderation Core
-          </div>
-          <h1 className="text-3xl font-extrabold text-white">Admin <span className="brand-text">Command Center</span></h1>
-          <p className="text-surface-400 text-sm mt-1">Real-time platform oversight, pseudonymized moderation, and compliance tracking.</p>
-        </header>
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
-          {statCards.map((card) => (
-            <motion.div key={card.label} {...fadeUp} className="glass-card-brand p-6 rounded-2xl hover:border-pink-500/30 transition-all border border-white/10 hover:shadow-lg hover:shadow-pink-500/5">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-xs font-bold text-surface-400 uppercase tracking-wider mb-1.5">{card.label}</p>
-                  <p className={`text-3xl font-extrabold font-mono bg-gradient-to-r ${card.gradient} bg-clip-text text-transparent`}>
-                    {card.value}
-                  </p>
+      <main className="admin-console min-h-screen bg-slate-50 px-4 pb-16 pt-24 dark:bg-[#09090e] sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <motion.header
+            {...fadeUp}
+            className="relative isolate mb-7 overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-rose-50 to-amber-50 p-6 shadow-sm dark:border-white/10 dark:from-[#15131d] dark:via-[#17111b] dark:to-[#111118] sm:p-8"
+          >
+            <div className="pointer-events-none absolute -right-16 -top-24 h-72 w-72 rounded-full bg-pink-500/10 blur-3xl dark:bg-pink-500/15" />
+            <div className="pointer-events-none absolute -bottom-36 right-1/3 h-64 w-64 rounded-full bg-amber-400/10 blur-3xl" />
+            <div className="relative flex flex-col justify-between gap-7 lg:flex-row lg:items-center">
+              <div className="max-w-3xl">
+                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-pink-500/20 bg-pink-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-pink-600 dark:text-pink-300">
+                  <Shield className="h-3.5 w-3.5" />
+                  Security &amp; Moderation Core
+                  <span
+                    className={`ml-1 h-2 w-2 rounded-full ${isConnected ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                  />
+                  {isConnected ? 'Live' : 'Reconnecting'}
                 </div>
-                <div className="p-3 rounded-xl bg-white/5 border border-white/5">
-                  <card.icon className="w-5 h-5 text-pink-400" />
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                  {user?.name ? `Welcome back, ${user.name}` : 'Platform oversight workspace'}
+                </p>
+                <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-slate-950 dark:text-white sm:text-4xl">
+                  Admin <span className="brand-text">Command Center</span>
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+                  Real-time platform oversight, pseudonymized moderation, and compliance tracking —
+                  all in one workspace.
+                </p>
+                <div className="mt-5 flex flex-wrap gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => selectTab('moderation')}
+                    className="btn-primary inline-flex items-center gap-2 px-4 py-2 text-xs text-white hover:text-white"
+                  >
+                    <Shield className="h-4 w-4" /> Review moderation
+                    {moderationQueue.length > 0 && (
+                      <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px]">
+                        {moderationQueue.length}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => selectTab('complaints')}
+                    className="btn-secondary inline-flex items-center gap-2 px-4 py-2 text-xs text-slate-800 hover:bg-slate-50 hover:text-slate-950 dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white"
+                  >
+                    <FileText className="h-4 w-4 text-pink-500" /> Complaint center
+                  </button>
+                  <button
+                    type="button"
+                    onClick={refreshDashboard}
+                    disabled={isRefreshing}
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white/70 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-pink-300 hover:text-pink-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:border-pink-400/40"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    Refresh data
+                  </button>
                 </div>
               </div>
-            </motion.div>
-          ))}
-        </div>
+              <div className="grid w-full grid-cols-2 gap-3 lg:max-w-xs">
+                <div className="rounded-2xl border border-slate-200/80 bg-white/70 p-4 dark:border-white/10 dark:bg-white/5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Open reviews
+                  </p>
+                  <p className="mt-1 text-2xl font-extrabold text-slate-900 dark:text-white">
+                    {moderationQueue.length + academicQueue.length}
+                  </p>
+                  <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    Moderation + academic
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-slate-200/80 bg-white/70 p-4 dark:border-white/10 dark:bg-white/5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Audit events
+                  </p>
+                  <p className="mt-1 text-2xl font-extrabold text-slate-900 dark:text-white">
+                    {auditLogs.length}
+                  </p>
+                  <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    Recent records loaded
+                  </p>
+                </div>
+              </div>
+            </div>
+          </motion.header>
 
-        {/* Navigation Tabs */}
-        <div className="flex border-b border-white/10 mb-8 overflow-x-auto no-scrollbar gap-1">
-          {['overview', 'users', 'violations', 'moderation', 'academic', 'trust', 'escalations', 'complaints', 'appeals', 'repeat-offenders', 'security', 'rules', 'policy-review', 'audit-logs', ...(canViewMoodTrends ? ['wellbeing'] : [])].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => {
-                setActiveTab(tab);
-                if (tab === 'wellbeing' && canViewMoodTrends) fetchMoodTrends();
-                if (['complaints', 'appeals', 'repeat-offenders', 'security', 'rules', 'policy-review'].includes(tab)) loadAdminSection(tab);
-              }}
-              className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
-                activeTab === tab
-                  ? 'btn-primary text-white shadow-md shadow-pink-500/10'
-                  : 'text-surface-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              {tab.replace('-', ' ')}
-            </button>
-          ))}
-        </div>
+          {/* Stats Grid */}
+          <div className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {statCards.map((card) => (
+              <motion.button
+                type="button"
+                key={card.label}
+                onClick={() => selectTab(card.tab)}
+                {...fadeUp}
+                className="glass-card group rounded-2xl border border-slate-200/80 p-5 text-left transition-all hover:-translate-y-0.5 hover:border-pink-400/50 hover:shadow-lg dark:border-white/10 sm:p-6"
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      {card.label}
+                    </p>
+                    <p
+                      className={`bg-gradient-to-r ${card.gradient} bg-clip-text font-mono text-3xl font-extrabold text-transparent`}
+                    >
+                      {card.value ?? '—'}
+                    </p>
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{card.detail}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 transition-colors group-hover:border-pink-200 group-hover:bg-pink-50 dark:border-white/10 dark:bg-white/5 dark:group-hover:bg-pink-500/10">
+                    <card.icon className="h-5 w-5 text-pink-500 dark:text-pink-400" />
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center gap-1 text-[11px] font-semibold text-pink-600 opacity-0 transition-opacity group-hover:opacity-100 dark:text-pink-300">
+                  Open report <ArrowRight className="h-3 w-3" />
+                </div>
+              </motion.button>
+            ))}
+          </div>
 
-        {/* Tab Content */}
+          {/* Navigation Tabs */}
+          <nav
+            aria-label="Admin dashboard sections"
+            className="mb-7 rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"
+          >
+            <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+              {dashboardTabs.map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => selectTab(tab)}
+                  aria-current={activeTab === tab ? 'page' : undefined}
+                  className={`rounded-xl px-3.5 py-2.5 text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
+                    activeTab === tab
+                      ? 'bg-gradient-to-r from-pink-500 via-rose-500 to-amber-500 text-white shadow-md shadow-pink-500/20'
+                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white'
+                  }`}
+                >
+                  {tab.replace(/-/g, ' ')}
+                  {tab === 'moderation' && moderationQueue.length > 0 && (
+                    <span
+                      className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[9px] ${activeTab === tab ? 'bg-white/20' : 'bg-pink-100 text-pink-700 dark:bg-pink-500/15 dark:text-pink-300'}`}
+                    >
+                      {moderationQueue.length}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </nav>
+
+          {/* Tab Content */}
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
@@ -408,35 +681,239 @@ export default function AdminPanel() {
             className="space-y-6"
           >
             {activeTab === 'overview' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Recent Violations Summary */}
-                <div className="glass-card p-6">
-                  <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                    <AlertTriangle className="w-5 h-5 text-amber-500" /> Latest Violations
-                  </h2>
-                  <div className="space-y-3">
-                    {violations.slice(0, 5).map(v => (
-                      <div key={v.id} className="flex items-center justify-between p-3 border border-surface-100 dark:border-surface-800 rounded-xl">
-                        <div>
-                          <p className="text-sm font-bold text-surface-900 dark:text-white">{v.anonymous_id}</p>
-                          <p className="text-xs text-surface-500">{v.violation_type || 'Potential Red Flag'}</p>
-                        </div>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          v.severity === 'HIGH' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'
-                        }`}>
-                          {v.severity}
-                        </span>
+                <div className="space-y-6">
+                  <section>
+                    <div className="mb-3 flex items-end justify-between gap-3">
+                      <div>
+                        <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                          Operations at a glance
+                        </h2>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          Jump directly to active review work and platform signals.
+                        </p>
                       </div>
-                    ))}
-                    {violations.length === 0 && (
-                      <p className="text-sm text-surface-500 text-center py-6">No violations reported yet.</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
+                      <span className="hidden items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 sm:inline-flex">
+                        <Clock3 className="h-3.5 w-3.5" /> Updated in real time
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                      {reviewCards.map((card, index) => (
+                        <motion.button
+                          type="button"
+                          key={card.label}
+                          onClick={() => selectTab(card.tab)}
+                          {...fadeUp}
+                          transition={{ ...fadeUp.transition, delay: index * 0.04 }}
+                          className="glass-card group rounded-2xl border border-slate-200/80 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-pink-300 dark:border-white/10 sm:p-5"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                {card.label}
+                              </p>
+                              <p
+                                className={`mt-2 text-3xl font-extrabold tracking-tight ${card.color}`}
+                              >
+                                {card.value}
+                              </p>
+                              <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                                {card.description}
+                              </p>
+                            </div>
+                            <card.icon className={`h-5 w-5 shrink-0 ${card.color}`} />
+                          </div>
+                          <div className="mt-3 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 transition-colors group-hover:text-pink-500">
+                            View queue <ArrowRight className="h-3 w-3" />
+                          </div>
+                        </motion.button>
+                      ))}
+                    </div>
+                  </section>
 
-            {activeTab === 'wellbeing' && canViewMoodTrends && (
+                  <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+                    <section className="glass-card rounded-2xl border border-slate-200/80 p-5 dark:border-white/10 sm:p-6">
+                      <div className="mb-4 flex items-center justify-between gap-3">
+                        <div>
+                          <h2 className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
+                            <Shield className="h-4 w-4 text-pink-500" /> Priority moderation
+                          </h2>
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            Recent items awaiting an administrator decision.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => selectTab('moderation')}
+                          className="inline-flex shrink-0 items-center gap-1 text-xs font-bold text-pink-600 hover:text-pink-700 dark:text-pink-300"
+                        >
+                          Open queue <ArrowRight className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <div className="space-y-2.5">
+                        {moderationQueue.slice(0, 4).map((item) => (
+                          <div
+                            key={item.id}
+                            className="flex items-start justify-between gap-3 rounded-xl border border-slate-200/80 bg-white/50 p-3 dark:border-white/10 dark:bg-white/[0.03]"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-200">
+                                  {item.anonymous_id || 'Anonymous peer'}
+                                </span>
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                  {item.content_type?.replace(/_/g, ' ') || 'content'}
+                                </span>
+                              </div>
+                              <p className="mt-1.5 line-clamp-2 text-xs text-slate-600 dark:text-slate-300">
+                                {item.ai_reason || item.content_text || 'Content needs review.'}
+                              </p>
+                            </div>
+                            <span
+                              className={`shrink-0 rounded-full px-2 py-1 text-[9px] font-bold uppercase ${item.ai_severity === 'HIGH' ? 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'}`}
+                            >
+                              {item.ai_severity || 'Review'}
+                            </span>
+                          </div>
+                        ))}
+                        {moderationQueue.length === 0 && (
+                          <p className="rounded-xl bg-emerald-50 px-4 py-7 text-center text-sm text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                            No pending moderation items. The queue is clear.
+                          </p>
+                        )}
+                      </div>
+                    </section>
+
+                    <section className="glass-card rounded-2xl border border-slate-200/80 p-5 dark:border-white/10 sm:p-6">
+                      <div className="mb-4 flex items-center justify-between gap-3">
+                        <div>
+                          <h2 className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
+                            <Activity className="h-4 w-4 text-emerald-500" /> Recent platform
+                            activity
+                          </h2>
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            Audit trail for administration and safety actions.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => selectTab('audit-logs')}
+                          className="inline-flex shrink-0 items-center gap-1 text-xs font-bold text-pink-600 hover:text-pink-700 dark:text-pink-300"
+                        >
+                          View audit <ArrowRight className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <div className="space-y-2.5">
+                        {auditLogs.slice(0, 4).map((entry, index) => (
+                          <div
+                            key={entry.id || `${entry.action}-${index}`}
+                            className="flex items-start gap-3 rounded-xl border border-slate-200/80 bg-white/50 p-3 dark:border-white/10 dark:bg-white/[0.03]"
+                          >
+                            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
+                              <FileText className="h-4 w-4" />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-xs font-bold text-slate-800 dark:text-slate-100">
+                                {entry.action || 'Platform activity'}
+                              </p>
+                              <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                                {entry.target_type
+                                  ? `${entry.target_type}${entry.target_id ? ` #${entry.target_id}` : ''} · `
+                                  : ''}
+                                {entry.created_at
+                                  ? new Date(entry.created_at).toLocaleString()
+                                  : 'Recent'}
+                              </p>
+                            </div>
+                            {entry.severity && (
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                                {entry.severity}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                        {auditLogs.length === 0 && (
+                          <p className="rounded-xl bg-slate-100/80 px-4 py-7 text-center text-sm text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                            No audit activity is available yet.
+                          </p>
+                        )}
+                      </div>
+                    </section>
+                  </div>
+
+                  <section className="glass-card rounded-2xl border border-slate-200/80 p-5 dark:border-white/10 sm:p-6">
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <div>
+                        <h2 className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
+                          <AlertTriangle className="h-4 w-4 text-amber-500" /> Latest violations
+                        </h2>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          Recent pseudonymized safety signals.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                          Severity
+                          <select
+                            value={violationsSeverityFilter}
+                            onChange={(event) => setViolationsSeverityFilter(event.target.value)}
+                            className="input-field py-1 text-xs"
+                            aria-label="Filter latest violations by severity"
+                          >
+                            <option value="ALL">All</option>
+                            <option value="HIGH">High</option>
+                            <option value="MEDIUM">Medium</option>
+                            <option value="LOW">Low</option>
+                          </select>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => selectTab('violations')}
+                          className="inline-flex items-center gap-1 text-xs font-bold text-pink-600 hover:text-pink-700 dark:text-pink-300"
+                        >
+                          All violations <ArrowRight className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
+                      {filteredViolations.slice(0, 4).map((v) => (
+                        <div
+                          key={v.id}
+                          className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/80 p-3 dark:border-white/10"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate font-mono text-xs font-bold text-slate-800 dark:text-slate-100">
+                              {v.anonymous_id || 'Anonymous peer'}
+                            </p>
+                            <p className="mt-1 truncate text-[11px] text-slate-500 dark:text-slate-400">
+                              {v.violation_type || 'Potential Red Flag'}
+                            </p>
+                          </div>
+                          <span
+                            className={`shrink-0 rounded-full px-2 py-1 text-[9px] font-bold ${
+                              String(v.severity).toUpperCase() === 'HIGH'
+                                ? 'bg-red-100 text-red-600 dark:bg-red-500/15 dark:text-red-300'
+                                : String(v.severity).toUpperCase() === 'LOW'
+                                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                                  : 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
+                            }`}
+                          >
+                            {v.severity || 'MEDIUM'}
+                          </span>
+                        </div>
+                      ))}
+                      {filteredViolations.length === 0 && (
+                        <p className="col-span-full rounded-xl bg-slate-100/80 px-4 py-7 text-center text-sm text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                          {violations.length === 0
+                            ? 'No violations reported. Safety activity will appear here.'
+                            : 'No violations match this severity.'}
+                        </p>
+                      )}
+                    </div>
+                  </section>
+                </div>
+              )}
+
+              {activeTab === 'wellbeing' && canViewMoodTrends && (
               <section className="space-y-6">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div>
@@ -565,8 +1042,26 @@ export default function AdminPanel() {
             )}
 
             {activeTab === 'violations' && (
-              <div className="glass-card overflow-hidden">
-                <div className="overflow-x-auto">
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="text-lg font-bold text-surface-900 dark:text-white">Violation Records</h2>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-surface-600 dark:text-surface-300">
+                    Severity
+                    <select
+                      value={violationsSeverityFilter}
+                      onChange={(event) => setViolationsSeverityFilter(event.target.value)}
+                      className="input-field text-sm"
+                      aria-label="Filter violations by severity"
+                    >
+                      <option value="ALL">All</option>
+                      <option value="HIGH">High</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="LOW">Low</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="glass-card overflow-hidden">
+                  <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead className="bg-surface-50 dark:bg-surface-800/50 text-[10px] uppercase tracking-widest font-bold text-surface-500">
                       <tr>
@@ -577,13 +1072,17 @@ export default function AdminPanel() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-surface-100 dark:divide-surface-800">
-                      {violations.map(v => (
+                      {filteredViolations.map(v => (
                         <tr key={v.id} className="text-sm transition-colors hover:bg-surface-50 dark:hover:bg-surface-800/30">
                           <td className="px-6 py-4 font-mono font-bold text-surface-900 dark:text-white">{v.anonymous_id}</td>
                           <td className="px-6 py-4 text-surface-600 dark:text-surface-400">{v.violation_type || 'Moderate Content'}</td>
                           <td className="px-6 py-4">
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full italic ${
-                              v.severity === 'HIGH' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'
+                              String(v.severity).toUpperCase() === 'HIGH'
+                                ? 'bg-red-100 text-red-600'
+                                : String(v.severity).toUpperCase() === 'LOW'
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : 'bg-amber-100 text-amber-700'
                             }`}>
                               {v.severity}
                             </span>
@@ -591,8 +1090,16 @@ export default function AdminPanel() {
                           <td className="px-6 py-4 text-surface-500 font-mono text-xs">{new Date(v.created_at).toLocaleString()}</td>
                         </tr>
                       ))}
+                      {filteredViolations.length === 0 && (
+                        <tr>
+                          <td colSpan="4" className="px-6 py-10 text-center text-sm text-surface-500">
+                            {violations.length === 0 ? 'No violation records found.' : 'No violations match this severity.'}
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               </div>
             )}
@@ -628,7 +1135,11 @@ export default function AdminPanel() {
                             <span className="font-mono font-bold text-surface-900 dark:text-white bg-surface-100 dark:bg-surface-800 px-2 py-1 rounded">{item.anonymous_id}</span>
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-100 text-surface-600 uppercase tracking-widest">{item.content_type}</span>
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                              item.ai_severity === 'HIGH' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'
+                              String(item.ai_severity).toUpperCase() === 'HIGH'
+                                ? 'bg-red-100 text-red-600'
+                                : String(item.ai_severity).toUpperCase() === 'LOW'
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : 'bg-amber-100 text-amber-700'
                             }`}>{item.ai_severity}</span>
                           </div>
                           <p className="text-surface-700 dark:text-surface-300 italic mb-4">&ldquo;{item.content_text}&rdquo;</p>
@@ -789,20 +1300,42 @@ export default function AdminPanel() {
                   <h2 className="font-bold text-surface-900 dark:text-white">Community Badge Tiers</h2>
                   <p className="mt-1 text-xs text-surface-500">Numeric trust scores are private to the matching engine; this view shows badge tiers only.</p>
                 </div>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-100 p-4 dark:border-surface-800">
+                  <p className="text-sm font-semibold text-surface-600 dark:text-surface-300">Filter community members by badge</p>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-surface-600 dark:text-surface-300">
+                    Badge tier
+                    <select
+                      value={badgeTierFilter}
+                      onChange={(event) => setBadgeTierFilter(event.target.value)}
+                      className="input-field text-sm"
+                      aria-label="Filter users by community badge tier"
+                    >
+                      <option value="ALL">All tiers</option>
+                      <option value="bronze">Bronze</option>
+                      <option value="silver">Silver</option>
+                      <option value="gold">Gold</option>
+                      <option value="platinum">Platinum</option>
+                    </select>
+                  </label>
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
                     <thead className="bg-surface-50 text-xs uppercase text-surface-500 dark:bg-surface-800"><tr><th className="p-4">Anonymous ID</th><th className="p-4">Badge</th><th className="p-4">Department</th></tr></thead>
                     <tbody>
-                      {users.filter(account => account.role === 'student').map(account => (
+                      {filteredBadgeUsers.map(account => (
                         <tr key={account.id} className="border-t border-surface-100 dark:border-surface-800">
                           <td className="p-4 font-mono">{account.anonymous_id || 'N/A'}</td>
-                          <td className="p-4"><BadgeDisplay tier={account.badge_tier || 'bronze'} size="sm" /></td>
+                          <td className="p-4"><BadgeDisplay tier={getBadgeTier(account.badge_tier)} size="sm" /></td>
                           <td className="p-4">{account.department || 'Unassigned'}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                  {users.filter(account => account.role === 'student').length === 0 && <p className="p-8 text-center text-sm text-surface-500">No student badges available.</p>}
+                  {filteredBadgeUsers.length === 0 && (
+                    <p className="p-8 text-center text-sm text-surface-500">
+                      {studentBadgeUsers.length === 0 ? 'No student badges available.' : 'No students have this badge tier yet.'}
+                    </p>
+                  )}
                 </div>
               </section>
             )}
@@ -812,6 +1345,20 @@ export default function AdminPanel() {
                   <h3 className="font-bold text-surface-900 dark:text-white flex items-center gap-2">
                     <ArrowUpCircle className="w-5 h-5 text-red-500" /> Escalation Records
                   </h3>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-surface-600 dark:text-surface-300">
+                    Level
+                    <select
+                      value={escalationLevelFilter}
+                      onChange={(event) => setEscalationLevelFilter(event.target.value)}
+                      className="input-field text-sm"
+                      aria-label="Filter escalations by level"
+                    >
+                      <option value="ALL">All levels</option>
+                      {escalationLevels.map((level) => (
+                        <option key={level} value={level}>{level.replace(/_/g, ' ')}</option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
@@ -825,7 +1372,7 @@ export default function AdminPanel() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-surface-100 dark:divide-surface-800">
-                      {escalations.map(e => (
+                      {filteredEscalations.map(e => (
                         <tr key={e.id} className="text-sm transition-colors hover:bg-surface-50 dark:hover:bg-surface-800/30">
                           <td className="px-6 py-4 font-mono text-xs text-surface-500">{e.id}</td>
                           <td className="px-6 py-4 font-mono font-bold text-surface-900 dark:text-white">{e.anonymous_id || `User ${e.user_id}`}</td>
@@ -838,10 +1385,10 @@ export default function AdminPanel() {
                           <td className="px-6 py-4 text-surface-500 font-mono text-xs">{new Date(e.created_at).toLocaleString()}</td>
                         </tr>
                       ))}
-                      {escalations.length === 0 && (
+                      {filteredEscalations.length === 0 && (
                         <tr>
                           <td colSpan="5" className="px-6 py-10 text-center text-surface-500">
-                            No escalations found.
+                            {escalations.length === 0 ? 'No escalations found.' : 'No escalations match this level.'}
                           </td>
                         </tr>
                       )}
@@ -876,12 +1423,28 @@ export default function AdminPanel() {
                         </section>
 
                 <section className="space-y-4">
-                  <h2 className="text-lg font-bold text-surface-900 dark:text-white">Escalated Complaints</h2>
-                  {escalatedComplaints.map(item => (
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h2 className="text-lg font-bold text-surface-900 dark:text-white">Escalated Complaints</h2>
+                    <label className="flex items-center gap-2 text-sm font-semibold text-surface-600 dark:text-surface-300">
+                      Category
+                      <select
+                        value={complaintCategoryFilter}
+                        onChange={(event) => setComplaintCategoryFilter(event.target.value)}
+                        className="input-field text-sm"
+                        aria-label="Filter escalated complaints by category"
+                      >
+                        <option value="ALL">All categories</option>
+                        {complaintCategories.map((category) => (
+                          <option key={category} value={category}>{category.replace(/_/g, ' ')}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  {filteredEscalatedComplaints.map(item => (
                     <article key={item.id} className="glass-card space-y-4 border-l-4 border-l-amber-500 p-5">
                       <header className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                          <p className="font-semibold capitalize">{item.category.replace(/_/g, ' ')} · Case #{item.id}</p>
+                          <p className="font-semibold capitalize">{String(item.category || 'other').replace(/_/g, ' ')} · Case #{item.id}</p>
                           <p className="mt-1 text-xs text-surface-500">Reporter {item.reporter_anonymous_id} · Reported {item.reported_anonymous_id || 'content'}</p>
                         </div>
                         <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">{item.is_flagged ? 'Priority review' : 'Escalated'}</span>
@@ -905,7 +1468,11 @@ export default function AdminPanel() {
                       )}
                     </article>
                   ))}
-                  {escalatedComplaints.length === 0 && <div className="glass-card p-10 text-center text-surface-500">No escalated complaints.</div>}
+                  {filteredEscalatedComplaints.length === 0 && (
+                    <div className="glass-card p-10 text-center text-surface-500">
+                      {escalatedComplaints.length === 0 ? 'No escalated complaints.' : 'No complaints match this category.'}
+                    </div>
+                  )}
                 </section>
               </div>
             )}
@@ -940,6 +1507,15 @@ export default function AdminPanel() {
                 <div className="grid gap-4 sm:grid-cols-3"><div className="glass-card p-5"><p className="text-xs uppercase text-surface-500">Accounts requiring review</p><p className="mt-2 text-2xl font-bold">{securitySignals.accounts_requiring_review_count}</p></div><div className="glass-card p-5"><p className="text-xs uppercase text-surface-500">Locked accounts</p><p className="mt-2 text-2xl font-bold">{securitySignals.locked_account_count}</p></div><div className="glass-card p-5"><p className="text-xs uppercase text-surface-500">High-severity violations · 24h</p><p className="mt-2 text-2xl font-bold">{securitySignals.high_severity_violations_24h}</p></div></div>
                 <div className="glass-card overflow-hidden"><div className="border-b border-surface-200 p-5 dark:border-surface-800"><h2 className="font-bold">Accounts Requiring Security Review</h2></div><div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-surface-50 text-xs uppercase text-surface-500 dark:bg-surface-800"><tr><th className="p-4">Anonymous ID</th><th className="p-4">Role signal</th><th className="p-4">Failed attempts</th><th className="p-4">Lock expires</th></tr></thead><tbody>{securitySignals.accounts_requiring_review.map(row => <tr key={row.user_id} className="border-t border-surface-100 dark:border-surface-800"><td className="p-4 font-mono">{row.anonymous_id || 'Profile unavailable'}</td><td className="p-4">{row.is_locked ? 'Locked' : 'Repeated login failures'}</td><td className="p-4">{row.failed_attempts}</td><td className="p-4">{row.lock_until ? new Date(row.lock_until).toLocaleString() : '—'}</td></tr>)}</tbody></table></div>{securitySignals.accounts_requiring_review.length === 0 && <p className="p-8 text-center text-sm text-surface-500">No accounts currently require security review.</p>}</div>
               </section>
+            )}
+
+            {activeTab === 'security' && !adminSectionLoading && !securitySignals && !adminSectionError && (
+              <div className="glass-card rounded-2xl p-8 text-center text-sm text-slate-600 dark:text-slate-300">
+                Security signal data is unavailable. Refresh this section to try again.
+                <button type="button" onClick={() => loadAdminSection('security')} className="btn-secondary mx-auto mt-4 flex items-center gap-2">
+                  <RefreshCw className="h-4 w-4" /> Retry
+                </button>
+              </div>
             )}
 
             {activeTab === 'rules' && !adminSectionLoading && (
@@ -1013,9 +1589,9 @@ export default function AdminPanel() {
             )}
           </motion.div>
         </AnimatePresence>
+        </div>
       </main>
       <Footer />
     </>
   );
 }
-

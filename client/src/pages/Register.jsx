@@ -65,11 +65,29 @@ export default function Register() {
   return (
     <>
       <Navbar />
-      <div className="min-h-screen flex items-center justify-center pt-20 pb-12 px-4 relative overflow-hidden bg-slate-50 dark:bg-[#09090e] transition-colors">
+      <main className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-[#09090e] px-4 pb-12 pt-20">
+        <div className="absolute inset-0 bg-[#09090e]" />
+        <video
+          className="absolute inset-0 h-full w-full object-cover opacity-90 motion-reduce:hidden"
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          aria-hidden="true"
+          onError={(event) => {
+            event.currentTarget.style.display = 'none';
+          }}
+        >
+          <source src="/signin_and_login.mp4" type="video/mp4" />
+        </video>
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-950/30 via-slate-950/25 to-purple-950/35" />
         {/* Decorative Orbs */}
-        <div className="orb orb-pink -top-20 -left-20 pointer-events-none" />
-        <div className="orb orb-red top-1/2 -right-24 pointer-events-none" />
-        <div className="orb orb-purple bottom-10 left-1/3 pointer-events-none" />
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="orb orb-pink -top-20 -left-20" />
+          <div className="orb orb-red top-1/2 -right-24" />
+          <div className="orb orb-purple bottom-10 left-1/3" />
+        </div>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -188,7 +206,7 @@ export default function Register() {
             </p>
           </div>
         </motion.div>
-      </div>
+      </main>
     </>
   );
 }

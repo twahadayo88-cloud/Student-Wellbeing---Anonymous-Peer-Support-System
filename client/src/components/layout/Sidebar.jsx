@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { Moon, Sun } from 'lucide-react';
+import { ThemeContext } from '../../context/ThemeContext';
 import useAuth from '../../hooks/useAuth';
 import { useSocket } from '../../context/SocketContext';
 import { ShieldIcon, AlertIcon, BellIcon, AcademicIcon, BoardIcon, BookIcon, HeartIcon, TrophyIcon, GridIcon, ChatIcon, UserIcon } from './icons.jsx';
@@ -12,6 +14,7 @@ import { ShieldIcon, AlertIcon, BellIcon, AcademicIcon, BoardIcon, BookIcon, Hea
 export default function Sidebar({ incomingCount = 0 }) {
   const { user } = useAuth();
   const { socket, isConnected } = useSocket();
+  const { isDark, toggleTheme } = useContext(ThemeContext);
   const location = useLocation();
 
   // ─── Real-time live counts & profile from dashboard:init socket data ───
@@ -78,7 +81,6 @@ export default function Sidebar({ incomingCount = 0 }) {
         { to: '/complaints', label: 'Complaints', icon: AlertIcon },
         { to: '/mood', label: 'Mood', icon: HeartIcon },
         { to: '/leaderboard', label: 'Leaderboard', icon: TrophyIcon },
-        { to: '/profile', label: 'My Profile', icon: UserIcon },
       ];
 
   return (
@@ -117,7 +119,35 @@ export default function Sidebar({ incomingCount = 0 }) {
             )}
           </Link>
         )    )}
-          </nav>
+        <div className="mt-4 border-t border-slate-200/80 pt-3 dark:border-white/10">
+          <p className="mb-2 hidden px-3 text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500 sm:block">
+            Personal Data
+          </p>
+          <Link
+            to="/profile"
+            title="My Profile"
+            aria-current={isActive('/profile') ? 'page' : undefined}
+            className={`flex items-center justify-center gap-2 rounded-lg px-2 py-2.5 text-sm font-medium transition-colors sm:justify-start sm:px-3 ${
+              isActive('/profile')
+                ? 'bg-gradient-to-r from-pink-500 to-amber-500 text-white shadow-md shadow-pink-500/30'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700/30 dark:hover:text-white'
+            }`}
+          >
+            <UserIcon size={16} className="shrink-0" />
+            <span className="hidden flex-1 sm:inline">My Profile</span>
+          </Link>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
+            title={`Switch to ${isDark ? 'light' : 'dark'} mode`}
+            className="mt-1 flex w-full items-center justify-center gap-2 rounded-lg px-2 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700/30 dark:hover:text-white sm:justify-start sm:px-3"
+          >
+            {isDark ? <Sun size={16} className="shrink-0" /> : <Moon size={16} className="shrink-0" />}
+            <span className="hidden flex-1 text-left sm:inline">{isDark ? 'Light Mode' : 'Dark Mode'}</span>
+          </button>
+        </div>
+      </nav>
 
           {/* Live user identity + badge tier (real-time from dashboard:data) */}
           {liveStats.myId && (
