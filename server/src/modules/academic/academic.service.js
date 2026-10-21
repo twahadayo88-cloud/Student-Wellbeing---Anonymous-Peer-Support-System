@@ -99,6 +99,10 @@ async function createHelpRequest(userId, data) {
     }
   }
 
+  if (mod.status === 'clean') {
+    await _offerToNextHelper(requestId);
+  }
+
   return { id: requestId, moderation: mod };
 }
 
@@ -112,7 +116,8 @@ async function getOpenRequests(subject = null) {
   `);
 
   let sql = `
-    SELECT ar.*, bt.current_tier as badge_tier 
+    SELECT ar.id, ar.anonymous_id, ar.subject, ar.urgency, ar.title, ar.description,
+      ar.status, ar.created_at, bt.current_tier as badge_tier
     FROM academic_requests ar
     LEFT JOIN badge_tiers bt ON ar.user_id = bt.user_id
     WHERE ar.status = 'open' AND ar.ai_moderation_status = 'clean'
@@ -152,13 +157,43 @@ async function getHelperListing(userId) {
  */
 async function getMyRequests(userId) {
   const [rows] = await query(`
-    SELECT ar.*, bt.current_tier as badge_tier
+    SELECT ar.id, ar.anonymous_id, ar.subject, ar.urgency, ar.title, ar.description,
+      ar.status, ar.created_at, ar.matched_at, ar.resolved_at, ar.closed_at,
+      helper.anonymous_id AS matched_helper_anonymous_id, bt.current_tier as badge_tier
     FROM academic_requests ar
     LEFT JOIN badge_tiers bt ON ar.user_id = bt.user_id
+    LEFT JOIN profiles helper ON ar.matched_helper_id = helper.user_id
     WHERE ar.user_id = ? 
     ORDER BY ar.created_at DESC
   `, [userId]);
   return rows;
+}
+
+async function getRequestById(requestId, viewerId, viewerRole) {
+  const [rows] = await query(`
+    SELECT ar.id, ar.user_id, ar.matched_helper_id, ar.status, ar.ai_moderation_status,
+      ar.anonymous_id, ar.subject, ar.urgency, ar.title, ar.description, ar.created_at,
+      ar.matched_at, ar.resolved_at, ar.closed_at, requesterBadge.current_tier AS badge_tier,
+      helper.anonymous_id AS matched_helper_anonymous_id
+    FROM academic_requests ar
+    LEFT JOIN badge_tiers requesterBadge ON requesterBadge.user_id = ar.user_id
+    LEFT JOIN profiles helper ON helper.user_id = ar.matched_helper_id
+    WHERE ar.id = ?
+  `, [requestId]);
+  if (!rows.length) return null;
+
+  const request = rows[0];
+  const isParticipant = Number(request.user_id) === Number(viewerId)
+    || Number(request.matched_helper_id) === Number(viewerId);
+  const isPublicOpenRequest = viewerRole === 'student'
+    && request.status === 'open'
+    && request.ai_moderation_status === 'clean';
+  if (!isParticipant && !isPublicOpenRequest) return null;
+
+  delete request.user_id;
+  delete request.matched_helper_id;
+  delete request.ai_moderation_status;
+  return request;
 }
 
 /**
@@ -202,15 +237,17 @@ async function getAvailableHelpers(subject, excludeUserId) {
  * @param {number} feedbackAdj - per-helper feedback adjustment, already capped
  * @returns {number} combined normalized score, with feedback applied in percentage points
  */
-function _scoreCandidate(requester, candidate, feedbackAdj) {
+function _scoreCandidate(requester, candidate, feedbackAdj, requestSubject = null) {
   const weightTotal = Object.values(MATCH_WEIGHTS).reduce((t, w) => t + Math.max(0, w), 0) || 1;
 
   const mySubjects = requester.subjects;
   const cSubjects  = safeParse(candidate.subjects);
 
-  const subjectScore = mySubjects.length
-    ? Math.min(mySubjects.filter(s => cSubjects.includes(s)).length / mySubjects.length, 1)
-    : 0;
+  const subjectScore = requestSubject
+    ? Number(cSubjects.includes(requestSubject))
+    : mySubjects.length
+      ? Math.min(mySubjects.filter(s => cSubjects.includes(s)).length / mySubjects.length, 1)
+      : 0;
 
   const mySem   = Number(requester.semester);
   const candSem = Number(candidate.semester);
@@ -354,7 +391,7 @@ async function _offerToNextHelper(requestId, excludeUserIds = []) {
 
   const scored = candidates.map(c => ({
     ...c,
-    _score: _scoreCandidate(requester, c, feedbackMap.get(c.user_id) || 0),
+    _score: _scoreCandidate(requester, c, feedbackMap.get(c.user_id) || 0, request.subject),
   }));
   scored.sort((a, b) => b._score - a._score);
   const nextHelper = scored[0];
@@ -511,8 +548,9 @@ async function resolveRequest(requestId, rating, actorId) {
   const [requestRows] = await query('SELECT * FROM academic_requests WHERE id = ?', [requestId]);
   if (!requestRows.length) throw new Error('Request not found');
   const request = requestRows[0];
+  const numericRating = Number(rating);
 
-  if (!Number.isInteger(Number(rating)) || Number(rating) < 1 || Number(rating) > 5) {
+  if (!Number.isInteger(numericRating) || numericRating < 1 || numericRating > 5) {
     throw new Error('Rating must be an integer from 1 to 5');
   }
   if (Number(request.user_id) !== Number(actorId)) {
@@ -535,8 +573,8 @@ async function resolveRequest(requestId, rating, actorId) {
     
     await trustService.handleTrustEvent(helperId, 'HELPED_SUCCESSFULLY');
 
-    if (rating === 5) await trustService.handleTrustEvent(helperId, 'RECEIVED_5_STAR');
-    else if (rating === 4) await trustService.handleTrustEvent(helperId, 'RECEIVED_4_STAR');
+    if (numericRating === 5) await trustService.handleTrustEvent(helperId, 'RECEIVED_5_STAR');
+    else if (numericRating === 4) await trustService.handleTrustEvent(helperId, 'RECEIVED_4_STAR');
     
     if (request.urgency === 'critical') {
       await trustService.handleTrustEvent(helperId, 'HELPED_CRITICAL');
@@ -558,10 +596,10 @@ async function resolveRequest(requestId, rating, actorId) {
         resolution_count = resolution_count + 1,
         helpfulness_rating = (helpfulness_rating * total_ratings_received + VALUES(helpfulness_rating)) / (total_ratings_received + 1),
         total_ratings_received = total_ratings_received + 1
-    `, [helperId, Number(rating)]);
+    `, [helperId, numericRating]);
 
     try {
-      await storeHelperFeedback(requestId, helperId, rating, actorId);
+      await storeHelperFeedback(requestId, helperId, numericRating, actorId);
     } catch (fbErr) {
       logger.warn('storeHelperFeedback failed (non-fatal)', { error: fbErr.message });
     }
@@ -706,5 +744,6 @@ module.exports = {
   submitAppeal,
   checkDailyLimit,
   getMyRequests,
+  getRequestById,
   _offerToNextHelper,
 };

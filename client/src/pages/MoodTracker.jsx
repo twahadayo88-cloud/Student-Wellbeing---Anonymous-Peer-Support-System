@@ -205,7 +205,7 @@ const MoodTracker = () => {
             <>
           {/* Reminder nudge */}
           {reminder?.needsReminder && !checkedInToday && (
-            <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl px-5 py-4">
+            <div role="status" aria-live="polite" className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl px-5 py-4">
               <Bell className="w-5 h-5 text-amber-500 shrink-0" />
               <p className="text-xs sm:text-sm text-amber-700 dark:text-amber-300 font-medium">
                 {reminder.missedDays

@@ -76,6 +76,10 @@ function ResourceCard({ resource, facultyMode, onRefresh }) {
   };
 
   const showReviews = async () => {
+    if (reviews) {
+      setReviews(null);
+      return;
+    }
     try {
       const response = await api.get(`/resources/${resource.id}/reviews`);
       setReviews(response.data.data || []);
@@ -113,6 +117,11 @@ function ResourceCard({ resource, facultyMode, onRefresh }) {
         </div>
       </header>
 
+      {Number(resource.request_demand) > 0 && (
+        <p className="text-xs text-surface-500 dark:text-surface-400">
+          Requested by students {resource.request_demand} time{Number(resource.request_demand) === 1 ? '' : 's'} in the past 30 days
+        </p>
+      )}
       <p className="whitespace-pre-wrap text-sm text-surface-700 dark:text-surface-300 leading-relaxed">{resource.description}</p>
       {resource.moderation_reason && <p className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-xs text-amber-600 dark:text-amber-400 font-medium">Flagged for faculty review: {resource.moderation_reason}</p>}
       {resource.review_note && <p className="text-xs text-surface-500 dark:text-surface-400 italic">Review note: {resource.review_note}</p>}
@@ -347,6 +356,7 @@ ResourceCard.propTypes = {
     is_bookmarked: PropTypes.oneOfType([PropTypes.bool, PropTypes.number]),
     average_rating: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     review_count: PropTypes.number,
+    request_demand: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     moderation_reason: PropTypes.string,
     review_note: PropTypes.string,
     relevance_score: PropTypes.number,

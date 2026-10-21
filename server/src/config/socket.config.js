@@ -370,7 +370,7 @@ function initSocket(httpServer) {
       try {
         const { request_id, rating } = data;
         const academicService = require('../modules/academic/academic.service');
-        await academicService.resolveRequest(request_id, rating);
+        await academicService.resolveRequest(request_id, rating, socket.userId);
         logger.info(`Academic request ${request_id} resolved with rating ${rating}`);
       } catch (err) {
         logger.error('academic:resolve_request error', { error: err.message });

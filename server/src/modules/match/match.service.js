@@ -13,6 +13,7 @@ const MATCH_WEIGHTS = {
   activity: Math.max(0, configuredScore('MATCH_WEIGHT_ACTIVITY', 15)),
 };
 const MIN_TRUST_SCORE = Math.max(0, Math.min(100, configuredScore('MATCH_MIN_TRUST_SCORE', 30)));
+const FEEDBACK_CAP = Math.max(0, configuredScore('MATCH_FEEDBACK_MAX', 5));
 
 async function getRecommendations(userId) {
   const [meRows] = await query('SELECT p.*, u.role FROM profiles p JOIN users u ON p.user_id = u.id WHERE p.user_id = ?', [userId]);
@@ -43,6 +44,24 @@ async function getRecommendations(userId) {
       AND p.trust_score >= ?
   `, [userId, MIN_TRUST_SCORE]);
 
+  const feedbackAdjustments = new Map();
+  if (candidates.length && FEEDBACK_CAP > 0) {
+    const placeholders = candidates.map(() => '?').join(',');
+    const [feedbackRows] = await query(`
+      SELECT helper_user_id, AVG(rating) AS avg_rating
+      FROM helper_feedback
+      WHERE helper_user_id IN (${placeholders})
+      GROUP BY helper_user_id
+    `, candidates.map(candidate => candidate.user_id));
+    for (const row of feedbackRows) {
+      const rawAdjustment = (Number(row.avg_rating) - 3) * 2;
+      feedbackAdjustments.set(
+        Number(row.helper_user_id),
+        Math.max(-FEEDBACK_CAP, Math.min(FEEDBACK_CAP, rawAdjustment))
+      );
+    }
+  }
+
   const scored = candidates.map(c => {
     const cSubjects = safeParse(c.subjects);
     const subjectScore = mySubjects.length
@@ -67,12 +86,13 @@ async function getRecommendations(userId) {
       else if (ageInDays <= 30) activityScore = 0.5;
       else if (ageInDays <= 90) activityScore = 0.2;
     }
-    const score = (
+    const baseScore = (
       subjectScore * Math.max(0, MATCH_WEIGHTS.subject) +
       semesterScore * Math.max(0, MATCH_WEIGHTS.semester) +
       trustScore * Math.max(0, MATCH_WEIGHTS.trust) +
       activityScore * Math.max(0, MATCH_WEIGHTS.activity)
     ) / weightTotal;
+    const score = baseScore + (feedbackAdjustments.get(Number(c.user_id)) || 0) / 100;
 
     return {
       anonymous_id: c.anonymous_id,

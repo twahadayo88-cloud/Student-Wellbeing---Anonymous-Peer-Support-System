@@ -33,7 +33,7 @@ const getRequests = asyncHandler(async (req, res) => {
 
 const getMyRequests = asyncHandler(async (req, res) => {
   const userId = req.user.user_id;
-  const [rows] = await query('SELECT * FROM academic_requests WHERE user_id = ? ORDER BY created_at DESC', [userId]);
+  const rows = await academicService.getMyRequests(userId);
   
   res.status(200).json({
     success: true,
@@ -43,12 +43,12 @@ const getMyRequests = asyncHandler(async (req, res) => {
 
 const getRequestById = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const [rows] = await query('SELECT * FROM academic_requests WHERE id = ?', [id]);
-  if (!rows.length) throw new AppError('Request not found', 404);
+  const request = await academicService.getRequestById(id, req.user.user_id, req.user.role);
+  if (!request) throw new AppError('Request not found', 404);
   
   res.status(200).json({
     success: true,
-    data: rows[0]
+    data: request
   });
 });
 
@@ -154,7 +154,8 @@ const getAdminQueue = asyncHandler(async (req, res) => {
 
 const adminApprove = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  await query("UPDATE academic_requests SET ai_moderation_status = 'clean' WHERE id = ?", [id]);
+  const [result] = await query("UPDATE academic_requests SET ai_moderation_status = 'clean' WHERE id = ?", [id]);
+  if (result.affectedRows) await academicService._offerToNextHelper(id);
   res.status(200).json({ success: true, message: 'Request approved' });
 });
 

@@ -53,7 +53,7 @@ class MoodService {
     await assertMoodConsent(userId);
     const moodSubjectId = getMoodSubjectId(userId);
 
-    let finalNote = rawNote ? rawNote.trim() : null;
+    let finalNote = typeof rawNote === 'string' ? rawNote.trim() || null : null;
     if (finalNote) {
       const safetyResult = await contentSafety.analyzeContent(finalNote);
       if (safetyResult.isFlagged) {
@@ -147,12 +147,12 @@ class MoodService {
     return rows;
   }
 
-  async getReminderStatus(userId, threshold = 2) {
+  async getReminderStatus(userId, threshold = 1) {
     await assertMoodConsent(userId);
     const [rows] = await query(
       `SELECT MAX(created_at) AS last_checkin,
               MAX(DATE(created_at) = CURDATE()) AS checked_in_today,
-              DATEDIFF(CURDATE(), DATE(MAX(created_at))) AS missed_days
+              GREATEST(DATEDIFF(CURDATE(), DATE(MAX(created_at))) - 1, 0) AS missed_days
        FROM mood_entries WHERE mood_subject_id = ?`,
       [getMoodSubjectId(userId)]
     );

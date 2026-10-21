@@ -63,13 +63,16 @@ async function listApprovedResources(filters = {}, userId, options = {}) {
 
   const [rows] = await query(
     `SELECT r.id, r.title, r.description, r.subject, r.semester, r.category,
-            r.external_url, r.original_file_name, r.uploader_id, r.created_at,
+            r.external_url, r.original_file_name, r.created_at,
             p.anonymous_id AS uploader_anonymous_id,
             COALESCE((SELECT AVG(rv.rating) FROM resource_reviews rv WHERE rv.resource_id = r.id), 0) AS average_rating,
             (SELECT COUNT(*) FROM resource_reviews rv WHERE rv.resource_id = r.id) AS review_count,
             (SELECT COUNT(*) FROM resource_bookmarks rb WHERE rb.resource_id = r.id) AS bookmark_count,
             EXISTS(SELECT 1 FROM resource_bookmarks mine WHERE mine.resource_id = r.id AND mine.user_id = ?) AS is_bookmarked,
+            COALESCE(resource_demand.request_count, 0) AS request_demand,
             (
+              LEAST(COALESCE(resource_demand.request_count, 0), 10) * 5
+              +
               CASE
                 WHEN ? <= 2 AND LOWER(r.category) IN ('wellbeing', 'wellness') THEN 35
                 WHEN ? >= 4 AND LOWER(r.category) IN ('practice', 'lecture notes', 'reference') THEN 10
@@ -81,7 +84,8 @@ async function listApprovedResources(filters = {}, userId, options = {}) {
                   ELSE 0
                 END
               + CASE
-                  WHEN r.semester IS NOT NULL AND r.semester = student_profile.semester THEN 20
+                  WHEN r.semester REGEXP '^[0-9]+$'
+                       AND CAST(r.semester AS UNSIGNED) = student_profile.semester THEN 20
                   ELSE 0
                 END
               + CASE WHEN EXISTS (
@@ -93,9 +97,18 @@ async function listApprovedResources(filters = {}, userId, options = {}) {
      FROM resources r
      LEFT JOIN profiles p ON p.user_id = r.uploader_id
      LEFT JOIN profiles student_profile ON student_profile.user_id = ?
+     LEFT JOIN (
+       SELECT subject, COUNT(*) AS request_count
+       FROM academic_requests
+       WHERE ai_moderation_status = 'clean'
+         AND status IN ('open', 'matched', 'in_progress')
+         AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+       GROUP BY subject
+     ) resource_demand ON resource_demand.subject = r.subject
      WHERE ${conditions.join(' AND ')}
      ORDER BY ${options.recommendations ? 'recommendation_score DESC,' : ''}
-              (bookmark_count + review_count * 0.25) DESC, average_rating DESC, r.created_at DESC
+              request_demand DESC, (bookmark_count + review_count * 0.25) DESC,
+              average_rating DESC, r.created_at DESC
      LIMIT 100`,
     [userId, moodScore, moodScore, userId, userId, ...params.slice(1)]
   );
@@ -128,7 +141,7 @@ async function getMyResources(userId) {
 async function getFacultyQueue() {
   const [rows] = await query(
     `SELECT r.id, r.title, r.description, r.subject, r.semester, r.category,
-            r.external_url, r.original_file_name, r.uploader_id, r.status,
+            r.external_url, r.original_file_name, r.status,
             r.is_flagged, r.moderation_reason, r.relevance_score, r.quality_score,
             r.created_at,
             p.anonymous_id AS uploader_anonymous_id
@@ -189,6 +202,12 @@ async function addReview(resourceId, userId, rating, review) {
 }
 
 async function getReviews(resourceId) {
+  const [resource] = await query(
+    "SELECT id FROM resources WHERE id = ? AND status = 'approved'",
+    [resourceId]
+  );
+  if (!resource.length) throw AppError.notFound('Approved resource not found.');
+
   const [rows] = await query(
     `SELECT rr.id, rr.rating, rr.review, rr.created_at, p.anonymous_id AS reviewer_anonymous_id
      FROM resource_reviews rr
